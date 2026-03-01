@@ -19,7 +19,7 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
   final List<Widget> _screens = [
     const HomeTab(),
     const CourseListScreen(),
-    const MyLearningScreen(),
+    const MyCoursesScreen(),
     const ProfileScreen(),
   ];
 

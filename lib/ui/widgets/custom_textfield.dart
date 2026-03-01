@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 
 class CustomTextField extends StatelessWidget {
   final String hintText;
   final IconData icon;
-  final bool isPassword;
   final TextEditingController controller;
+  final bool isPassword;
+  final Widget? suffixIcon; // 1. Ensure this is defined here
 
   const CustomTextField({
     super.key,
@@ -13,25 +13,20 @@ class CustomTextField extends StatelessWidget {
     required this.icon,
     required this.controller,
     this.isPassword = false,
+    this.suffixIcon, // 2. Ensure this is in the constructor
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: TextField(
-        controller: controller,
-        obscureText: isPassword,
-        decoration: InputDecoration(
-          hintText: hintText,
-          prefixIcon: Icon(icon, color: AppColors.primaryBlue),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(15),
-          hintStyle: const TextStyle(color: AppColors.textMuted),
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: Icon(icon),
+        suffixIcon: suffixIcon, // 3. Ensure this is used here
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );

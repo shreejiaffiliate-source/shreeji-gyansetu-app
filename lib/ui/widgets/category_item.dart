@@ -40,7 +40,7 @@ class CategoryItem extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primarySoft, // Soft blue from our AppColors
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primaryBlue.withOpacity(0.1)),
+                border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.1)),
               ),
               child: Icon(
                 _getIconData(iconClass),
@@ -52,12 +52,13 @@ class CategoryItem extends StatelessWidget {
             Text(
               categoryName,
               textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              overflow: TextOverflow.visible,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
+                height: 1.1,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textMuted,
               ),
             ),
           ],

@@ -157,7 +157,7 @@ class CourseDetailScreen extends StatelessWidget {
                       fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(course.description, style: const TextStyle(
-                      color: AppColors.textDark, height: 1.5)),
+                      color: AppColors.textMuted, height: 1.5)),
 
                   const SizedBox(height: 30),
 

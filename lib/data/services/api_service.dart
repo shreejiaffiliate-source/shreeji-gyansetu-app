@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_endpoints.dart';
@@ -109,6 +110,40 @@ class ApiService {
     } catch (e) {
       return false;
     }
+  }
+
+  // Update Profile
+
+  Future<bool> updateFullProfile({
+    required Map<String, String> fields,
+    File? imageFile,
+  }) async {
+    var request = http.MultipartRequest(
+      'PATCH',
+      Uri.parse(ApiEndpoints.profile),
+    );
+
+    request.headers.addAll(await _getHeaders());
+    request.fields.addAll(fields);
+
+    if (imageFile != null) {
+      request.files.add(await http.MultipartFile.fromPath('profile.photo', imageFile.path));
+    }
+
+    final response = await request.send();
+    return response.statusCode == 200;
+  }
+
+  Future<bool> changePassword(String oldPass, String newPass) async {
+    final response = await http.post(
+      Uri.parse("${ApiEndpoints.baseUrl}/change-password/"), // Ensure this matches urls.py
+      body: json.encode({
+        'old_password': oldPass,
+        'new_password': newPass,
+      }),
+      headers: await _getHeaders(),
+    );
+    return response.statusCode == 200;
   }
 }
 

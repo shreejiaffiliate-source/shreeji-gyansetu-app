@@ -28,7 +28,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   Future<void> _initializePlayer() async {
-    print("--- ATTEMPTING TO PLAY: ${widget.lesson.videoUrl} ---");
+    debugPrint("--- ATTEMPTING TO PLAY: ${widget.lesson.videoUrl} ---");
     try {
       // 1. Initialize VideoPlayer with your Django Media URL
       _videoPlayerController = VideoPlayerController.networkUrl(

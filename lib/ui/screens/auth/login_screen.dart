@@ -18,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  bool _isObscured = true;
+
   void _handleLogin() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -43,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid credentials. Please try again.")),
+          const SnackBar(
+              content: Text("Invalid credentials. Please try again.")),
         );
       }
     }
@@ -69,12 +72,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       'lib/assets/images/logo.png',
                       height: 100,
                       errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.school, size: 80, color: AppColors.primaryBlue),
+                      const Icon(
+                          Icons.school, size: 80, color: AppColors.primaryBlue),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       "Shreeji GyanSetu",
-                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      style: Theme
+                          .of(context)
+                          .textTheme
+                          .displayLarge
+                          ?.copyWith(
                         color: AppColors.primaryBlue,
                         fontSize: 28,
                       ),
@@ -84,8 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 40),
 
-              Text("Welcome Back", style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const Text("Login to your account", style: TextStyle(color: AppColors.textMuted)),
+              Text("Welcome Back", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+              const Text("Login to your account",
+                  style: TextStyle(color: AppColors.textMuted)),
               const SizedBox(height: 32),
 
               // Form Fields
@@ -99,7 +112,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 hintText: "Password",
                 icon: Icons.lock_outline,
                 controller: _passwordController,
-                isPassword: true,
+                isPassword: _isObscured,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isObscured ? Icons.visibility_off : Icons.visibility,
+                    color: AppColors.textMuted,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isObscured = !_isObscured;
+                    });
+                  },
+                ),
               ),
 
               const SizedBox(height: 12),
@@ -107,7 +131,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {}, // Handle Forgot Password
-                  child: const Text("Forgot Password?", style: TextStyle(color: AppColors.primaryCyan)),
+                  child: const Text("Forgot Password?",
+                      style: TextStyle(color: AppColors.primaryCyan)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -126,9 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Text("Don't have an account?"),
                   TextButton(
                     onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen()));
+                      Navigator.push(context, MaterialPageRoute(
+                          builder: (context) => const RegisterScreen()));
                     },
-                    child: const Text("Register", style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.bold)),
+                    child: const Text("Register", style: TextStyle(
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -139,3 +167,35 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+  class CustomTextField extends StatelessWidget {
+  final String hintText;
+  final IconData icon;
+  final TextEditingController controller;
+  final bool isPassword;
+  final Widget? suffixIcon; // Ensure this exists
+
+  const CustomTextField({
+  super.key,
+  required this.hintText,
+  required this.icon,
+  required this.controller,
+  this.isPassword = false, // Defaults to false for username/email
+  this.suffixIcon, // Optional suffix icon
+  });
+
+  @override
+  Widget build(BuildContext context) {
+  return TextFormField(
+  controller: controller,
+  obscureText: isPassword, // Hides text if true
+  decoration: InputDecoration(
+  hintText: hintText,
+  prefixIcon: Icon(icon),
+  suffixIcon: suffixIcon, // Displays the eye icon
+  border: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(12),
+  ),
+  ),
+  );
+  }
+  }

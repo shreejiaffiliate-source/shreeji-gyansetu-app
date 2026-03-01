@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:gyansetu/ui/screens/profile/support_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../../data/providers/theme_provider.dart';
+import 'change_password_screen.dart';
+import 'edit_profile_screen.dart'; // Create this next
+import '../../../data/models/course_model.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -10,24 +14,49 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.user;
 
     return Scaffold(
       appBar: AppBar(title: const Text("Profile"), elevation: 0),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          const CircleAvatar(
-            radius: 50,
-            backgroundColor: AppColors.primaryBlue,
-            child: Icon(Icons.person, size: 50, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          const Text("User Name", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const Text("Student Account", style: TextStyle(color: AppColors.textMuted)),
-          const SizedBox(height: 30),
+        body: SingleChildScrollView(
+          // Added padding to give the whole screen some breathing room
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            children: [
+              // 1. Profile Picture
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: AppColors.primarySoft,
+                backgroundImage: (user?.profilePhoto != null)
+                    ? NetworkImage(user!.profilePhoto!)
+                    : null,
+                child: (user?.profilePhoto == null)
+                    ? const Icon(Icons.person, size: 50, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(height: 16),
 
-          _buildProfileOption(Icons.edit, "Edit Profile", () {}),
+              // Fetching actual Name from Django User Model
+              Text(
+                  "${user?.firstName ?? 'User'} ${user?.lastName ?? ''}".trim().isEmpty
+                      ? user?.username ?? "User"
+                      : "${user?.firstName ?? ''} ${user?.lastName ?? ''}",
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)
+              ),
+              Text(
+                  user?.userType ?? "Student",
+                  style: const TextStyle(color: AppColors.textMuted)
+              ),
+              const SizedBox(height: 30),
 
+          _buildProfileOption(Icons.edit, "Edit Profile", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+            );
+          }),
+
+              // Theme Switcher
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, child) {
               return ListTile(
@@ -43,40 +72,47 @@ class ProfileScreen extends StatelessWidget {
                     // This calls the toggleTheme method we just wrote
                     themeProvider.toggleTheme(value);
                   },
-                  activeColor: AppColors.primaryBlue,
+                  activeThumbColor: AppColors.primaryBlue,
                 ),
               );
             },
           ),
 
-          _buildProfileOption(Icons.lock, "Change Password", () {}),
-          _buildProfileOption(Icons.help_outline, "Contact Support", () {}),
-          const Spacer(),
+              _buildProfileOption(Icons.lock, "Change Password", () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
+                );
+              }),
+              _buildProfileOption(Icons.headset_mic_outlined, "Contact Support", () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SupportScreen()),
+                );
+              }),
+              const SizedBox(height: 60),
 
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: TextButton.icon(
-              onPressed: () async {
-                await authProvider.logout();
-                // Use pushAndRemoveUntil to clear the navigation stack
-                // so the user can't go back to the profile after logging out.
-                if (context.mounted){
-                  Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: TextButton.icon(
+                  onPressed: () async {
+                    await authProvider.logout();
+                    if (!context.mounted) return;
+                    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
                       '/login',
-                      (route) => false,
-                      );
-                }
-              },
-
-              icon: const Icon(Icons.logout, color: Colors.red),
-              label: const Text(
-                  "Logout",
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-            ),
+                          (route) => false,
+                    );
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    "Logout",
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-        ],
-      ),
+        ),
     );
   }
 

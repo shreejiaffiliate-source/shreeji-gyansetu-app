@@ -98,3 +98,62 @@ class LessonModel {
     );
   }
 }
+
+class UserModel {
+  final int id;
+  final String username;
+  final String email;
+  final String? firstName;
+  final String? lastName;
+  final String? userType;
+  final String? profilePhoto;
+  final String? phoneNumber;
+  final String? collegeName;
+  final String? branch;
+  final String? enrollmentNumber;
+  final String? qualification;
+  final String? dateOfBirth;
+  final String? bio;
+
+  UserModel({
+    required this.id,
+    required this.username,
+    required this.email,
+    this.firstName,
+    this.lastName,
+    this.userType,
+    this.profilePhoto,
+    this.phoneNumber,
+    this.collegeName,
+    this.branch,
+    this.enrollmentNumber,
+    this.qualification,
+    this.dateOfBirth,
+    this.bio,
+  });
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    // 1. Extract the nested profile dictionary safely
+    final Map<String, dynamic> profile = json['profile'] ?? {};
+
+    return UserModel(
+      id: json['id'],
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      firstName: json['first_name'],
+      lastName: json['last_name'],
+      // 2. Map fields from the nested profile object
+      userType: profile['user_type'] ?? 'Student',
+      // Ensure these keys match your Django Profile model fields exactly
+      phoneNumber: profile['phone_number'],
+      collegeName: profile['college_name'],
+      branch: profile['branch'],
+      enrollmentNumber: profile['enrollment_number'],
+      qualification: profile['qualification'],
+      dateOfBirth: profile['date_of_birth'],
+      bio: profile['bio'],
+      // 3. Use the absolute URL from the SerializerMethodField if you added it
+      profilePhoto: json['profile_photo'] ?? profile['photo'],
+    );
+  }
+}

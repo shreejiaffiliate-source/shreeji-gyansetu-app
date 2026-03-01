@@ -24,6 +24,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _qualificationController = TextEditingController();
   final _experienceController = TextEditingController();
 
+  bool _isObscured = true;
+
   String _selectedUserType = 'Student'; // Default choice
 
   void _handleRegister() async {
@@ -115,7 +117,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 16),
             CustomTextField(hintText: "Email Address", icon: Icons.email_outlined, controller: _emailController),
             const SizedBox(height: 16),
-            CustomTextField(hintText: "Password", icon: Icons.lock_outline, controller: _passwordController, isPassword: true),
+            CustomTextField(
+              hintText: "Password",
+              icon: Icons.lock_outline,
+              controller: _passwordController,
+              isPassword: _isObscured, // Use the state here
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isObscured ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textMuted,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isObscured = !_isObscured;
+                  });
+                },
+              ),
+            ),
 
             // Conditional Teacher Fields
             if (_selectedUserType == 'Teacher') ...[
