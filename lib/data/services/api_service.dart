@@ -145,5 +145,129 @@ class ApiService {
     );
     return response.statusCode == 200;
   }
+
+// Lesson Progress
+
+  Future<bool> markLessonAsComplete(int lessonId) async {
+    try {
+      // FIX: Use your existing helper instead of _storage.read
+      final headers = await _getHeaders();
+
+      final response = await http.post(
+        // FIX: Use ApiEndpoints.baseUrl instead of undefined baseUrl
+        Uri.parse('${ApiEndpoints.baseUrl}/lessons/$lessonId/complete/'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint("Lesson $lessonId marked complete successfully.");
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error marking lesson complete: $e");
+      return false;
+    }
+  }
+  Future<List<dynamic>> getMyCourses() async {
+    // 1. Generate a unique timestamp to force a fresh request
+    final String cacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // 2. Append the timestamp to the URL (e.g., .../api/my-learning/?t=1709450000)
+    final String url = "${ApiEndpoints.myLearning}?t=$cacheBuster";
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: await _getHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      // Debug print to verify the fresh data is arriving
+      final List<dynamic> data = json.decode(response.body);
+      debugPrint("API: Fetched fresh progress data: $data");
+      return data;
+    } else {
+      throw Exception('Failed to load enrolled courses');
+    }
+  }
+
+  Future<bool> postLessonQuery(int lessonId, String question) async {
+    final url = "${ApiEndpoints.baseUrl}/lessons/$lessonId/query/"; // Matches Django URL
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+        body: jsonEncode({"question": question}),
+      );
+
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Error posting query: $e");
+      return false;
+    }
+  }
+
+  // lib/data/services/api_service.dart
+
+  Future<List<dynamic>> getLessonQueries(int lessonId) async {
+    final url = "${ApiEndpoints.baseUrl}/lessons/$lessonId/queries/list/";
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error fetching queries: $e");
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> getNotifications() async {
+    // Use a cache buster to ensure the badge updates in real-time
+    final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final String url = "${ApiEndpoints.baseUrl}/notifications/?t=$timestamp";
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(), // Essential for IsAuthenticated check
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        debugPrint("API Error: ${response.statusCode} - ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      debugPrint("Network Error fetching notifications: $e");
+      return [];
+    }
+  }
+
+// Helper to clear the notification once clicked
+  Future<bool> markNotificationAsRead(int notificationId) async {
+    final String url = "${ApiEndpoints.baseUrl}/notifications/$notificationId/read/";
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 }
+
+
+
 

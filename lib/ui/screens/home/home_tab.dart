@@ -5,10 +5,11 @@ import 'package:carousel_slider/carousel_slider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/slider_model.dart';
 import '../../../data/providers/course_provider.dart';
-import '../../widgets/category_item.dart'; // We'll build this simple widget next
-import '../../widgets/course_card.dart';   // We'll build this simple widget next
+import '../../widgets/category_item.dart';
+import '../../widgets/course_card.dart';
 import '../categories/all_category_screen.dart';
 import '../courses/course_list_screen.dart';
+import '../learning/lesson_player_screen.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -21,14 +22,100 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
-    // Use addPostFrameCallback to ensure the first build is done
-    // before we trigger a potential state change from the API
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      if (mounted){
-        Provider.of<CourseProvider>(context, listen: false).fetchHomeData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final provider = Provider.of<CourseProvider>(context, listen: false);
+        // Sync home content and check for new teacher replies
+        provider.fetchHomeData();
+        provider.fetchNotifications();
+      }
+    });
   }
-        });
-}
+
+  // Adaptive Notification Dialog
+  void _showNotificationDialog(BuildContext context, CourseProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "Notifications",
+          style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: provider.notifications.isEmpty
+              ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Text("No new teacher replies.", textAlign: TextAlign.center),
+          )
+              : ListView.separated(
+            shrinkWrap: true,
+            itemCount: provider.notifications.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final notif = provider.notifications[index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primarySoft,
+                  child: const Icon(Icons.message, color: AppColors.primaryBlue, size: 20),
+                ),
+                title: Text(
+                  notif['course_title'] ?? "Course Update",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: Text(
+                  notif['message'] ?? "",
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () async {
+                  // 1. Get IDs before closing the dialog
+                  final int notifId = notif['id'];
+                  final int lessonId = notif['lesson_id'];
+
+                  // 2. Mark as read on server & remove red badge locally
+                  await provider.markNotificationRead(notifId);
+
+                  // 3. Close the dialog
+                  if (mounted) Navigator.pop(context);
+
+                  // 4. Find the lesson and navigate
+                  final lesson = provider.findLessonById(lessonId);
+
+                  if (lesson != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LessonPlayerScreen(lesson: lesson),
+                      ),
+                    ).then((_) {
+                      // Refresh to ensure everything is in sync when returning
+                      provider.fetchNotifications();
+                    });
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Lesson details not found. Try refreshing.")),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close", style: TextStyle(color: AppColors.primaryBlue)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,43 +125,70 @@ class _HomeTabState extends State<HomeTab> {
       appBar: AppBar(
         title: Row(
           children: [
-            Image.asset('lib/assets/images/logo.png',
-            height: 40,
-            width: 40,
-              errorBuilder: (context, error, stackTrack){
-              return const Icon(Icons.school);
-              },
+            Image.asset(
+              'lib/assets/images/logo.png',
+              height: 40,
+              width: 40,
+              errorBuilder: (context, error, stackTrack) => const Icon(Icons.school),
             ),
-
-            // const Icon(Icons.school, color: AppColors.primaryBlue),
-            // const SizedBox(width: 2),
-            Text("Shreeji GyanSetu", style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            const Text(
+              "Shreeji GyanSetu",
+              style: TextStyle(color: AppColors.primaryBlue, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none)),
+          // Notification Bell with logic-driven badge
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                onPressed: () => _showNotificationDialog(context, courseProvider),
+                icon: const Icon(Icons.notifications_none),
+              ),
+              if (courseProvider.notifications.isNotEmpty)
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '${courseProvider.notifications.length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: courseProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-        onRefresh: () => courseProvider.fetchHomeData(),
+        onRefresh: () async {
+          await courseProvider.fetchHomeData();
+          await courseProvider.fetchNotifications();
+        },
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-
-              // 1. Promotional Carousel (Dynamic from slides API)
               _buildCarousel(courseProvider.sliders),
-
               const SizedBox(height: 24),
-
-              // 2. Categories Section
               _buildSectionHeader("Explore Categories", () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AllCategoriesScreen()),
+                  context,
+                  MaterialPageRoute(builder: (context) => const AllCategoriesScreen()),
                 );
               }),
               const SizedBox(height: 12),
@@ -87,13 +201,9 @@ class _HomeTabState extends State<HomeTab> {
                   itemBuilder: (context, index) {
                     return CategoryItem(category: courseProvider.categories[index]);
                   },
-
                 ),
               ),
-
               const SizedBox(height: 24),
-
-              // 3. Trending Courses (Vertical Grid)
               _buildSectionHeader("Trending Courses", () {
                 Navigator.push(
                   context,
@@ -106,18 +216,16 @@ class _HomeTabState extends State<HomeTab> {
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  clipBehavior: Clip.none, // Allow shadows and borders to bleed out slightly
+                  clipBehavior: Clip.none,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 15,
                     mainAxisSpacing: 15,
-                    childAspectRatio: 0.70, // Making it slightly smaller (taller cards)
+                    childAspectRatio: 0.70,
                   ),
                   itemCount: courseProvider.popularCourses.length,
                   itemBuilder: (context, index) {
                     final course = courseProvider.popularCourses[index];
-                    // This print will tell us if Flutter is actually trying to build all courses
-                    debugPrint("Building course index $index: ${course.title}");
                     return CourseCard(course: course);
                   },
                 ),
@@ -137,7 +245,10 @@ class _HomeTabState extends State<HomeTab> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          TextButton(onPressed: onSeeAll, child: const Text("See All", style: TextStyle(color: AppColors.primaryCyan))),
+          TextButton(
+            onPressed: onSeeAll,
+            child: const Text("See All", style: TextStyle(color: AppColors.primaryCyan)),
+          ),
         ],
       ),
     );
@@ -145,7 +256,6 @@ class _HomeTabState extends State<HomeTab> {
 
   Widget _buildCarousel(List<SliderModel> sliders) {
     if (sliders.isEmpty) {
-      // Show a default gradient box if no sliders are found in DB
       return Container(
         height: 180,
         margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -153,7 +263,9 @@ class _HomeTabState extends State<HomeTab> {
           borderRadius: BorderRadius.circular(15),
           gradient: const LinearGradient(colors: [AppColors.primaryBlue, AppColors.primaryCyan]),
         ),
-        child: const Center(child: Text("Welcome to Shreeji GyanSetu", style: TextStyle(color: Colors.white))),
+        child: const Center(
+          child: Text("Welcome to Shreeji GyanSetu", style: TextStyle(color: Colors.white)),
+        ),
       );
     }
 
@@ -174,14 +286,12 @@ class _HomeTabState extends State<HomeTab> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Real image from Django
                 CachedNetworkImage(
                   imageUrl: slider.image,
                   fit: BoxFit.fill,
                   placeholder: (context, url) => Container(color: Colors.grey[300]),
                   errorWidget: (context, url, error) => const Icon(Icons.error),
                 ),
-                // Dark overlay for text readability
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -191,7 +301,6 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                   ),
                 ),
-                // Banner Title
                 Positioned(
                   bottom: 20,
                   left: 20,

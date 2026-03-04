@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'data/providers/auth_provider.dart';
 import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
+import 'ui/animations/animated_splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,10 +44,11 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode, // Switch automatically
-      home: const AuthWrapper(), // Set home to the wrapper
+      home: const AnimatedSplashScreen(), // Set home to the wrapper
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/auth_wrapper': (context) => const AuthWrapper(),
       },
     );
   }

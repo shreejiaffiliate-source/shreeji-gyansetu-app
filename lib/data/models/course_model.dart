@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 class CourseModel {
   final int id;
   final String title;
@@ -13,6 +15,7 @@ class CourseModel {
   final int enrollmentCount;
   final List<ModuleModel> modules;
   final bool isEnrolled;
+  final double progress;
 
   CourseModel({
     required this.id,
@@ -29,15 +32,18 @@ class CourseModel {
     required this.enrollmentCount,
     required this.modules,
     required this.isEnrolled,
+    this.progress = 0.0,
   });
 
   factory CourseModel.fromJson(Map<String, dynamic> json) {
-    print("Course: ${json['title']} | Enrolled From API: ${json['is_enrolled']}");
+    // 1. Debug: See the exact raw value entering the model
+    debugPrint("RAW JSON for ${json['title']}: Progress = ${json['progress']}");
+
     return CourseModel(
       id: json['id'],
       title: json['title'] ?? 'Untitled Course',
       slug: json['slug'] ?? '',
-      thumbnail: json['thumbnail'] ?? '', // Django provides absolute URL via Serializer
+      thumbnail: json['thumbnail'] ?? '',
       description: json['description'] ?? '',
       price: json['price']?.toString() ?? '0',
       discountPrice: json['discount_price']?.toString(),
@@ -54,6 +60,10 @@ class CourseModel {
           ?.map((m) => ModuleModel.fromJson(m))
           .toList() ?? [],
       isEnrolled: json['is_enrolled'] ?? false,
+      // 2. FIXED: Safer way to handle the numeric conversion
+      progress: json['progress'] == null
+          ? 0.0
+          : (json['progress'] as num).toDouble(),
     );
   }
 }
@@ -61,15 +71,23 @@ class CourseModel {
 class ModuleModel {
   final String title;
   final List<LessonModel> lessons;
+  final double progress; // Added missing field
 
-  ModuleModel({required this.title, required this.lessons});
+  ModuleModel({
+    required this.title,
+    required this.lessons,
+    required this.progress
+  });
 
   factory ModuleModel.fromJson(Map<String, dynamic> json) {
     return ModuleModel(
-      title: json['title'],
+      title: json['title'] ?? 'Untitled',
       lessons: (json['lessons'] as List?)
           ?.map((l) => LessonModel.fromJson(l))
           .toList() ?? [],
+      progress: json['progress'] == null
+          ? 0.0
+          : (json['progress'] as num).toDouble(),
     );
   }
 }
@@ -79,6 +97,7 @@ class LessonModel {
   final String title;
   final String videoUrl;
   final bool isPreview;
+  final String? notesUrl;
 
 
 
@@ -87,6 +106,7 @@ class LessonModel {
     required this.title,
     required this.videoUrl,
     required this.isPreview,
+    this.notesUrl,
   });
 
   factory LessonModel.fromJson(Map<String, dynamic> json) {
@@ -95,6 +115,7 @@ class LessonModel {
       title: json['title'],
       videoUrl: json['video_url'] ?? '',
       isPreview: json['is_preview'] ?? false,
+      notesUrl: json['notes_file'],
     );
   }
 }
