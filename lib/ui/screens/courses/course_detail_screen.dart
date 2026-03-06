@@ -5,9 +5,9 @@ import '../../../data/models/course_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../screens/learning/lesson_player_screen.dart';
+import '../../screens/learning/my_learning_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../data/providers/course_provider.dart';
-
 
 class CourseDetailScreen extends StatelessWidget {
   final CourseModel course;
@@ -188,18 +188,18 @@ class CourseDetailScreen extends StatelessWidget {
       bottomSheet: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Theme
-              .of(context)
-              .cardColor,
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+          color: Theme.of(context).cardColor,
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
         ),
         child: CustomButton(
-          text: course.isEnrolled ? "Go to Dashboard" : "Enroll Now", // Updated text
+          text: course.isEnrolled ? "Go to Dashboard" : "Enroll Now",
           isSecondary: true,
           onPressed: () {
             if (course.isEnrolled) {
-              // If already enrolled, scroll to curriculum or open player
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You are already enrolled!")));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyCoursesScreen()), // Added the 's'
+              );
             } else {
               _enrollUser(context);
             }
