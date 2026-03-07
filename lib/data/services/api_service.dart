@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_endpoints.dart';
@@ -7,6 +8,11 @@ import '../../core/utils/storage_service.dart';
 
 class ApiService {
   final StorageService _storage = StorageService();
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: ApiEndpoints.baseUrl, // Replace with your Django API URL
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 3),
+  ));
 
   // Helper to get headers with Auth Token
   Future<Map<String, String>> _getHeaders() async {
@@ -96,18 +102,23 @@ class ApiService {
 
   }
 
-  Future<bool> enrollInCourse(int courseId) async {
+  Future<bool> enrollInCourse(int courseId, String paymentId) async {
     try {
+      // Ensure you use your helper to get the Auth Token
+      final headers = await _getHeaders();
+
       final response = await http.post(
-        Uri.parse("${ApiEndpoints.baseUrl}/enroll/"),
-        body: json.encode({'course_id': courseId}),
-        // Key must match Django request.data.get
-        headers: await _getHeaders(),
+        Uri.parse('${ApiEndpoints.baseUrl}/enroll/'),
+        headers: headers,
+        body: jsonEncode({
+          'course_id': courseId,
+          'razorpay_payment_id': paymentId,
+        }),
       );
 
-      // DEBUG: print(response.body);
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
+      debugPrint("Enrollment Error: $e");
       return false;
     }
   }
@@ -264,6 +275,30 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       return false;
+    }
+  }
+
+  Future<void> updateVideoProgress(int lessonId, double seconds) async {
+    try {
+      // 1. Get the headers that contain your 'Token <key>'
+      final Map<String, String> authHeaders = await _getHeaders();
+
+      // 2. Use the _dio instance which already knows the baseUrl
+      // Ensure the path starts with / and matches your Django urls.py
+      final response = await _dio.post(
+        '/lessons/$lessonId/update-progress/',
+        data: {
+          'last_position': seconds,
+        },
+        options: Options(
+          headers: authHeaders, // This fixes the 401 Unauthorized
+        ),
+      );
+
+      debugPrint("Sync Success: Saved $seconds seconds for lesson $lessonId");
+    } catch (e) {
+      // This will catch 404, 401, or network errors
+      debugPrint("Error syncing progress: $e");
     }
   }
 }

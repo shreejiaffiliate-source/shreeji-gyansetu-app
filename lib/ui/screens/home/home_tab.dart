@@ -74,33 +74,26 @@ class _HomeTabState extends State<HomeTab> {
                 ),
                 trailing: const Icon(Icons.chevron_right, size: 20),
                 onTap: () async {
-                  // 1. Get IDs before closing the dialog
                   final int notifId = notif['id'];
                   final int lessonId = notif['lesson_id'];
 
-                  // 2. Mark as read on server & remove red badge locally
                   await provider.markNotificationRead(notifId);
-
-                  // 3. Close the dialog
                   if (mounted) Navigator.pop(context);
 
-                  // 4. Find the lesson and navigate
                   final lesson = provider.findLessonById(lessonId);
 
                   if (lesson != null) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => LessonPlayerScreen(lesson: lesson),
+                        builder: (context) => LessonPlayerScreen(
+                          lesson: lesson,
+                          openQueries: true, // 1. Pass this flag to trigger the bottom sheet
+                        ),
                       ),
                     ).then((_) {
-                      // Refresh to ensure everything is in sync when returning
                       provider.fetchNotifications();
                     });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Lesson details not found. Try refreshing.")),
-                    );
                   }
                 },
               );

@@ -188,7 +188,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                 children: [
                   const SizedBox(height: 40),
                   Icon(Icons.search_off, size: 60, color: Colors.grey.withOpacity(0.5)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 16) ,
                   Text(
                     "No results found for '$_searchQuery'",
                     style: const TextStyle(color: Colors.grey, fontSize: 16),

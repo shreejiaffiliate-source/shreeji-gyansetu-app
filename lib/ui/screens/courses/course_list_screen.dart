@@ -13,6 +13,14 @@ class CourseListScreen extends StatefulWidget {
 }
 
 class _CourseListScreenState extends State<CourseListScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  @override
+  void dispose() {
+    // Always dispose controllers to prevent memory leaks
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,10 +45,26 @@ class _CourseListScreenState extends State<CourseListScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: TextField(
-              onChanged: (value) => courseProvider.filterSearch(value),
+              controller: _searchController,
+              onChanged: (value) {
+                courseProvider.filterSearch(value);
+                setState(() {}); // 2. Call setState to show/hide the clear icon
+              },
               decoration: InputDecoration(
                 hintText: "Search courses...",
                 prefixIcon: const Icon(Icons.search, color: AppColors.primaryCyan),
+
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                  icon: const Icon(Icons.clear, color: AppColors.textMuted),
+                  onPressed: () {
+                    _searchController.clear(); // Clear the text
+                    courseProvider.filterSearch(""); // Reset the search filter
+                    setState(() {}); // Rebuild to hide the icon
+                  },
+                )
+                    : null,
+
                 filled: true,
                 fillColor: Theme.of(context).cardColor,
                 border: OutlineInputBorder(
@@ -56,7 +80,9 @@ class _CourseListScreenState extends State<CourseListScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
         onRefresh: () => courseProvider.fetchAllCourses(),
-        child: ListView.builder(
+        child: courseProvider.filteredCourses.isEmpty
+          ? _buildNoResults()
+        : ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 20),
           itemCount: courseProvider.categories.length,
           itemBuilder: (context, index) {
@@ -127,5 +153,35 @@ class _CourseListScreenState extends State<CourseListScreen> {
       default:
         return Icons.category;
     }
+  }
+  Widget _buildNoResults() {
+    return Center(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(), // Allows pull-to-refresh
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 80,
+              color: AppColors.textMuted.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "No courses found",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Try searching for something else.",
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

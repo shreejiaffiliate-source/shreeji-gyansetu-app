@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/course_model.dart';
 import '../../../data/services/api_service.dart';
@@ -8,30 +9,112 @@ import '../../screens/learning/lesson_player_screen.dart';
 import '../../screens/learning/my_learning_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../data/providers/course_provider.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
-class CourseDetailScreen extends StatelessWidget {
+class CourseDetailScreen extends StatefulWidget {
   final CourseModel course;
   const CourseDetailScreen({super.key, required this.course});
 
-  // Function to handle enrollment
-  Future<void> _enrollUser(BuildContext context) async {
-    final success = await ApiService().enrollInCourse(course.id);
+  @override
+  State<CourseDetailScreen> createState() => _CourseDetailScreenState();
+}
+
+class _CourseDetailScreenState extends State<CourseDetailScreen> {
+  late Razorpay _razorpay;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear(); // Clean up listeners
+    super.dispose();
+  }
+
+  // --- RAZORPAY HANDLERS ---
+
+  void _startPayment() {
+    // Get the effective price (discount price if available, otherwise original price)
+    final String priceStr = widget.course.discountPrice ?? widget.course.price;
+    final double price = double.tryParse(priceStr) ?? 0.0;
+
+    var options = {
+      'key': 'rzp_test_SOCWZ8L1q01O7W', // Replace with your actual key from Razorpay Dashboard
+      'amount': (price * 100).toInt(), // Amount in paise
+      'name': 'Shreeji GyanSetu',
+      'description': widget.course.title,
+      'prefill': {
+        'contact': '9372149940', // Consider fetching from a UserProvider in future
+        'email': 'kashyapdabhi23@gmail.com'
+      },
+      'external': {
+        'wallets': ['paytm']
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint("Error starting Razorpay: $e");
+    }
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    // response.paymentId contains the ID returned by Razorpay
+    if (response.paymentId != null) {
+      _enrollUser(context, response.paymentId!);
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Payment Failed: ${response.message}")),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    debugPrint("External Wallet selected: ${response.walletName}");
+  }
+
+  // --- SHARE FUNCTION ---
+  void _shareCourse(BuildContext context) {
+    final String baseUrl = "https://shreejigyansetu.com/courses/";
+    final String shareUrl = "$baseUrl${widget.course.slug}/";
+
+    final String message =
+        "Check out this course: ${widget.course.title}\n\n"
+        "Learn more at: $shareUrl\n\n"
+        "Join Shreeji GyanSetu today!";
+
+    Share.share(message, subject: 'Check out this course!');
+  }
+
+  // --- ENROLLMENT LOGIC ---
+  // --- ENROLLMENT LOGIC ---
+  Future<void> _enrollUser(BuildContext context, String paymentId) async {
+    // Pass BOTH the course ID and the payment ID to the service
+    final success = await ApiService().enrollInCourse(widget.course.id, paymentId);
 
     if (success) {
-      // 1. REFRESH PROVIDER: This updates the 'isEnrolled' status in the app memory
-      // and ensures the Admin Panel data is reflected locally.
+      if (!mounted) return;
+      // Refresh the course list to update "isEnrolled" status globally
       await Provider.of<CourseProvider>(context, listen: false).fetchAllCourses();
-
-      // 2. Show the Congratulations dialog
+      if (!mounted) return;
       _showSuccessDialog(context);
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enrollment failed. Please try again.")),
+        const SnackBar(content: Text("Enrollment failed. Please contact support.")),
       );
     }
   }
 
-  // Success Dialog / Screen
   void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -55,19 +138,16 @@ class CourseDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             CustomButton(
-              text: "View Course", // Updated Text
+              text: "View Course",
               onPressed: () {
                 Navigator.pop(context); // Close dialog
-
-                // Open first lesson immediately
-                if (course.modules.isNotEmpty && course.modules.first.lessons.isNotEmpty) {
+                if (widget.course.modules.isNotEmpty && widget.course.modules.first.lessons.isNotEmpty) {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => LessonPlayerScreen(lesson: course.modules.first.lessons.first)),
+                    MaterialPageRoute(builder: (context) => LessonPlayerScreen(lesson: widget.course.modules.first.lessons.first)),
                   );
                 } else {
-                  // If no lessons, go back to refresh the main detail screen
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Go back if no content
                 }
               },
             ),
@@ -82,19 +162,14 @@ class CourseDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 1. Sleek Expanding App Bar with Thumbnail
           SliverAppBar(
             expandedHeight: 250,
             pinned: true,
-            // backgroundColor: AppColors.primaryBlue,
-            // leading: const BackButton(
-            //   color: Colors.white,
-            // ),
             flexibleSpace: FlexibleSpaceBar(
               background: CachedNetworkImage(
-                imageUrl: course.thumbnail,
+                imageUrl: widget.course.thumbnail,
                 fit: BoxFit.cover,
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 colorBlendMode: BlendMode.darken,
               ),
             ),
@@ -106,7 +181,6 @@ class CourseDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. Title and Level Badge
                   Row(
                     children: [
                       Container(
@@ -117,66 +191,95 @@ class CourseDetailScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
-                          course.level,
+                          widget.course.level,
                           style: const TextStyle(color: AppColors.primaryBlue,
                               fontSize: 12,
                               fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Text("${course.enrollmentCount} Students",
+                      Text("${widget.course.enrollmentCount} Students",
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 13)),
+
+                      const Spacer(),
+                      if (widget.course.isEnrolled)
+                        const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: AppColors.primaryGreen, size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              "Enrolled",
+                              style: TextStyle(
+                                color: AppColors.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        GestureDetector(
+                          onTap: _startPayment,
+                          child: const Text(
+                            "Enroll Now",
+                            style: TextStyle(
+                              color: AppColors.primaryBlue,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(course.title, style: const TextStyle(
+                  Text(widget.course.title, style: const TextStyle(
                       fontSize: 24, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
 
-                  // 3. Price & Action
                   Row(
                     children: [
-                      Text("₹${course.discountPrice}", style: const TextStyle(
+                      Text("₹${widget.course.discountPrice ?? widget.course.price}", style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryGreen)),
                       const SizedBox(width: 10),
-                      if (course.price != null)
-                        Text("₹${course.price}", style: const TextStyle(
+                      if (widget.course.discountPrice != null)
+                        Text("₹${widget.course.price}", style: const TextStyle(
                             decoration: TextDecoration.lineThrough,
                             color: AppColors.textMuted)),
                       const Spacer(),
-                      const Icon(Icons.share, color: AppColors.primaryBlue),
+
+                      IconButton(
+                        icon: const Icon(Icons.share, color: AppColors.primaryBlue),
+                        onPressed: () => _shareCourse(context),
+                      ),
                     ],
                   ),
                   const Divider(height: 40),
 
-                  // 4. Description
                   const Text("About this course", style: TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text(course.description, style: const TextStyle(
+                  Text(widget.course.description, style: const TextStyle(
                       color: AppColors.textMuted, height: 1.5)),
 
                   const SizedBox(height: 30),
 
-                  // 5. Curriculum Placeholder (Matches your Django Modules)
                   const Text("Course Curriculum", style: TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  if (course.modules.isEmpty)
+                  if (widget.course.modules.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
                       child: Text("Curriculum details coming soon.",
                           style: TextStyle(fontStyle: FontStyle.italic)),
                     )
                   else
-                  // This calls the NEW method defined below
-                    ...course.modules.map((module) =>
+                    ...widget.course.modules.map((module) =>
                         _buildModuleSection(context, module)),
 
-                  const SizedBox(height: 100), // Space for bottom button
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -184,7 +287,6 @@ class CourseDetailScreen extends StatelessWidget {
         ],
       ),
 
-      // 6. Sticky Bottom Enroll Button
       bottomSheet: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -192,16 +294,16 @@ class CourseDetailScreen extends StatelessWidget {
           boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
         ),
         child: CustomButton(
-          text: course.isEnrolled ? "Go to Dashboard" : "Enroll Now",
+          text: widget.course.isEnrolled ? "Go to Dashboard" : "Enroll Now",
           isSecondary: true,
           onPressed: () {
-            if (course.isEnrolled) {
+            if (widget.course.isEnrolled) {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const MyCoursesScreen()), // Added the 's'
+                MaterialPageRoute(builder: (context) => const MyCoursesScreen()),
               );
             } else {
-              _enrollUser(context);
+              _startPayment();
             }
           },
         ),
@@ -209,46 +311,74 @@ class CourseDetailScreen extends StatelessWidget {
     );
   }
 
-  // New Dynamic Module Builder
   Widget _buildModuleSection(BuildContext context, ModuleModel module) {
+    final bool isModuleDone = module.lessons.isNotEmpty &&
+        module.lessons.every((l) => l.isCompleted);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.borderColor),
         borderRadius: BorderRadius.circular(12),
+        color: isModuleDone ? AppColors.primaryGreen.withValues(alpha: 0.05) : null,
       ),
       child: ExpansionTile(
         shape: const RoundedRectangleBorder(side: BorderSide.none),
-        leading: const Icon(Icons.library_books, color: AppColors.primaryBlue),
+        leading: Icon(
+          isModuleDone ? Icons.verified : Icons.library_books,
+          color: isModuleDone ? AppColors.primaryGreen : AppColors.primaryBlue,
+        ),
         title: Text(
           module.title,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: isModuleDone ? AppColors.primaryGreen : null,
+          ),
         ),
         children: module.lessons.map((lesson) {
-          return ListTile(
-            contentPadding: const EdgeInsets.only(left: 32, right: 16),
-            leading: Icon(
-              // Show a lock icon if they can't access it
-              (course.isEnrolled || lesson.isPreview) ? Icons.play_circle_fill : Icons.lock_outline,
-              color: (course.isEnrolled || lesson.isPreview) ? AppColors.primaryCyan : AppColors.textMuted,
-              size: 20,
+          final bool isLessonDone = lesson.isCompleted;
+
+          return Container(
+            color: isLessonDone ? AppColors.primaryGreen.withValues(alpha: 0.08) : Colors.transparent,
+            child: ListTile(
+              contentPadding: const EdgeInsets.only(left: 32, right: 16),
+              leading: Icon(
+                isLessonDone
+                    ? Icons.check_circle
+                    : (widget.course.isEnrolled || lesson.isPreview)
+                    ? Icons.play_circle_fill
+                    : Icons.lock_outline,
+                color: isLessonDone
+                    ? AppColors.primaryGreen
+                    : (widget.course.isEnrolled || lesson.isPreview)
+                    ? AppColors.primaryCyan
+                    : AppColors.textMuted,
+                size: 20,
+              ),
+              title: Text(
+                  lesson.title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isLessonDone ? AppColors.textMuted : null,
+                    fontWeight: isLessonDone ? FontWeight.w400 : FontWeight.w500,
+                  )
+              ),
+              onTap: () {
+                if (widget.course.isEnrolled || lesson.isPreview) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => LessonPlayerScreen(lesson: lesson),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Enroll in this course to unlock this lesson!")),
+                  );
+                }
+              },
             ),
-            title: Text(lesson.title, style: const TextStyle(fontSize: 14)),
-            onTap: () {
-              if (course.isEnrolled || lesson.isPreview) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => LessonPlayerScreen(lesson: lesson),
-                  ),
-                );
-              } else {
-                // Show a message asking them to enroll
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Enroll in this course to unlock this lesson!")),
-                );
-              }
-            },
           );
         }).toList(),
       ),

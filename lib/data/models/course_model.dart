@@ -98,6 +98,9 @@ class LessonModel {
   final String videoUrl;
   final bool isPreview;
   final String? notesUrl;
+  final double lastPosition;
+  final String? resources;
+  final bool isCompleted;
 
 
 
@@ -107,6 +110,9 @@ class LessonModel {
     required this.videoUrl,
     required this.isPreview,
     this.notesUrl,
+    this.lastPosition = 0.0,
+    this.resources,
+    required this.isCompleted,
   });
 
   factory LessonModel.fromJson(Map<String, dynamic> json) {
@@ -116,6 +122,9 @@ class LessonModel {
       videoUrl: json['video_url'] ?? '',
       isPreview: json['is_preview'] ?? false,
       notesUrl: json['notes_file'],
+      lastPosition: (json['last_position'] ?? 0.0).toDouble(),
+      resources: json['resources'],
+      isCompleted: json['is_completed'] ?? false,
     );
   }
 }

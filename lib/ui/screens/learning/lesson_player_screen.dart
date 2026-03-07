@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +14,8 @@ import 'pdf_viewer_screen.dart';
 
 class LessonPlayerScreen extends StatefulWidget {
   final LessonModel lesson;
-  const LessonPlayerScreen({super.key, required this.lesson});
+  final bool openQueries;
+  const LessonPlayerScreen({super.key, required this.lesson, this.openQueries = false,});
 
   @override
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
@@ -25,10 +29,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   String? _errorMessage;
   bool _isCompleted = false;
 
+  Timer? _progressSyncTimer;
+  double _lastSyncedPosition = -1.0;
+
   @override
   void initState() {
     super.initState();
     _initializePlayer();
+
+    if (widget.openQueries) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showQueryBottomSheet(context);
+      });
+    }
   }
 
   Future<void> _initializePlayer() async {
@@ -37,6 +50,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         Uri.parse(widget.lesson.videoUrl.trim()),
       );
       await _videoPlayerController!.initialize();
+
+      // 1. RESUME LOGIC: Seek to last saved position.
+      // We check if it's at least 2 seconds in and not at the very end.
+      if (widget.lesson.lastPosition > 2) {
+        final target = Duration(seconds: widget.lesson.lastPosition.toInt());
+        // Ensure target isn't longer than video
+        if (target < _videoPlayerController!.value.duration) {
+          await _videoPlayerController!.seekTo(target);
+        }
+      }
+
       _videoPlayerController!.addListener(_videoListener);
 
       _chewieController = ChewieController(
@@ -51,12 +75,110 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ),
       );
 
+      // 2. START BACKGROUND SYNC: Syncs every 10 seconds while playing
+      _startProgressTimer();
+
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() {
         _isLoading = false;
         _errorMessage = "Could not load video.";
       });
+    }
+  }
+
+  void _showResourcesBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // 1. Allows the sheet to expand based on content
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      builder: (context) => Container(
+        // 2. Limit height to 60% of screen so it doesn't cover everything
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        child: SingleChildScrollView( // 3. This FIXES the RenderFlex overflow
+          padding: const EdgeInsets.all(25.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Lesson Resources",
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 15),
+              const Text(
+                "Copy and use the following links/info:",
+                style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 15),
+              Container(
+                padding: const EdgeInsets.all(15),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[900]
+                      : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: SelectableLinkify(
+                  text: widget.lesson.resources ?? "No resources provided.",
+                  onOpen: (link) async {
+                    final Uri url = Uri.parse(link.url);
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(
+                        url,
+                        mode: LaunchMode.externalApplication, // Opens in default mobile browser
+                      );
+                    } else {
+                      _showFeatureSnackBar("Could not open link: ${link.url}");
+                    }
+                  },
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                    fontSize: 15,
+                  ),
+                  linkStyle: const TextStyle(
+                    color: Colors.blue,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startProgressTimer() {
+    _progressSyncTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      _syncProgressToBackend();
+    });
+  }
+
+  void _syncProgressToBackend() {
+    if (_videoPlayerController != null && _videoPlayerController!.value.isPlaying) {
+      final currentPos = _videoPlayerController!.value.position.inSeconds.toDouble();
+
+      // Only hit the API if the user has moved at least 2 seconds since last sync
+      if (!_isCompleted && (currentPos - _lastSyncedPosition).abs() >= 2) {
+        _apiService.updateVideoProgress(widget.lesson.id, currentPos);
+        _lastSyncedPosition = currentPos;
+      }
     }
   }
 
@@ -72,6 +194,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   void _handleLessonCompletion() async {
+    // Reset synced position locally so final dispose doesn't overwrite completion with "end of video"
+    _lastSyncedPosition = 0;
+
     final courseProvider = Provider.of<CourseProvider>(context, listen: false);
     await courseProvider.completeLesson(widget.lesson.id);
 
@@ -86,14 +211,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     }
   }
 
-  void _showQueryBottomSheet(BuildContext context) {
+  void _showQueryBottomSheet(BuildContext context) async {
+    _videoPlayerController?.pause();
+    _syncProgressToBackend(); // Force sync immediately on pause
+
     final TextEditingController queryController = TextEditingController();
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     bool isSubmitting = false;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Crucial: allows the sheet to go full height if needed
+      isScrollControlled: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -101,16 +229,13 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       builder: (context) => StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              // Logic: Only apply bottom padding equal to the keyboard height
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Container(
-                // Optional: Limit height to 80% of screen to keep video visible at top
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.8,
                 ),
-                // Use SingleChildScrollView to prevent overflow when keyboard appears
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
                   child: Column(
@@ -134,7 +259,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                         ],
                       ),
                       const SizedBox(height: 15),
-
                       TextField(
                         controller: queryController,
                         maxLines: 3,
@@ -142,10 +266,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                         decoration: InputDecoration(
                           hintText: "Ask the teacher something...",
                           hintStyle: const TextStyle(color: AppColors.textMuted),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Theme.of(context).dividerColor),
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                           filled: true,
                           fillColor: isDark ? Colors.grey[900] : Colors.grey[100],
                         ),
@@ -166,18 +287,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                                 widget.lesson.id,
                                 queryController.text.trim()
                             );
-                            if (success) {
-                              queryController.clear();
-                              setModalState(() => isSubmitting = false);
-                            } else {
-                              setModalState(() => isSubmitting = false);
-                            }
+                            setModalState(() => isSubmitting = false);
+                            if (success) queryController.clear();
                           },
                           child: isSubmitting
-                              ? const SizedBox(height: 20, width: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text("Post Question",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text("Post Question", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ),
 
@@ -267,10 +382,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           }
       ),
     );
+    _videoPlayerController?.play();
   }
 
   @override
   void dispose() {
+    _progressSyncTimer?.cancel();
+
+    // FINAL SYNC: Save exactly where the user left off before closing
+    if (_videoPlayerController != null && !_isCompleted) {
+      final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
+      _apiService.updateVideoProgress(widget.lesson.id, finalPos);
+    }
+
     _videoPlayerController?.removeListener(_videoListener);
     _videoPlayerController?.dispose();
     _chewieController?.dispose();
@@ -289,57 +413,94 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.lesson.title)),
-      body: Column(
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(
-              color: Colors.black,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                  ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.white)))
-                  : Chewie(controller: _chewieController!),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        // Force an immediate final sync when the user hits 'Back'
+        if (_videoPlayerController != null && !_isCompleted) {
+          final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
+          await _apiService.updateVideoProgress(widget.lesson.id, finalPos);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(widget.lesson.title)),
+        body: Column(
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Container(
+                color: Colors.black,
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _errorMessage != null
+                    ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.white)))
+                    : Chewie(controller: _chewieController!),
+              ),
             ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                Text(widget.lesson.title,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.headlineSmall?.color,
-                    )
-                ),
-                const SizedBox(height: 8),
-                const Text("Follow along with provided notes.", style: TextStyle(color: AppColors.textMuted)),
-                Divider(height: 40, color: Theme.of(context).dividerColor),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildActionIcon(Icons.description, "Notes", onTap: () {
-                      if (widget.lesson.notesUrl != null && widget.lesson.notesUrl!.isNotEmpty) {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => PdfViewerScreen(pdfUrl: widget.lesson.notesUrl!, title: "Notes")));
-                      } else {
-                        _showFeatureSnackBar("No notes available.");
-                      }
-                    }),
-                    _buildActionIcon(
-                        Icons.question_answer,
-                        "Ask Query",
-                        onTap: () => _showQueryBottomSheet(context)
-                    ),
-                    _buildActionIcon(Icons.download, "Resources", onTap: () => _showFeatureSnackBar("Resources will be available soon.")),
-                  ],
-                ),
-              ],
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  Text(widget.lesson.title,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.headlineSmall?.color,
+                      )
+                  ),
+                  const SizedBox(height: 8),
+                  const Text("Follow along with provided notes.", style: TextStyle(color: AppColors.textMuted)),
+                  Divider(height: 40, color: Theme.of(context).dividerColor),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildActionIcon(Icons.description, "Notes", onTap: () async {
+                        if (widget.lesson.notesUrl != null && widget.lesson.notesUrl!.isNotEmpty) {
+      
+                          // 1. Pause the video before moving to the next screen
+                          _videoPlayerController?.pause();
+      
+                          // 2. Wait for the user to return from the PDF screen
+                          await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => PdfViewerScreen(
+                                      pdfUrl: widget.lesson.notesUrl!,
+                                      title: "Notes"
+                                  )
+                              )
+                          );
+      
+                          // 3. Resume the video automatically when they come back
+                          _videoPlayerController?.play();
+      
+                        } else {
+                          _showFeatureSnackBar("No notes available.");
+                        }
+                      }),
+                      _buildActionIcon(
+                          Icons.question_answer,
+                          "Ask Query",
+                          onTap: () => _showQueryBottomSheet(context)
+                      ),
+                      _buildActionIcon(
+                          Icons.download,
+                          "Resources",
+                          onTap: () {
+                            if (widget.lesson.resources != null && widget.lesson.resources!.isNotEmpty) {
+                              _showResourcesBottomSheet(context);
+                            } else {
+                              _showFeatureSnackBar("No resources available for this lesson.");
+                            }
+                          }
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
