@@ -1,6 +1,6 @@
 class ApiEndpoints {
   // Replace with your actual Django server URL
-  static const String baseUrl = "http://10.168.7.5:8000/api"; // Default for Android Emulator
+  static const String baseUrl = "http://10.12.95.5:8000/api"; // Default for Android Emulator
 
   static const String login = "$baseUrl/login/";
   static const String home = "$baseUrl/home/";

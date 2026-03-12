@@ -12,6 +12,9 @@ import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
 import 'data/services/notification_service.dart';
 
+// ✅ 1. GLOBAL NAVIGATOR KEY: Navigation handle karne ke liye top-level par define karein
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 // Background handler must be top-level
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -22,29 +25,30 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Services
+  // 2. Initialize Services
   try {
     await Firebase.initializeApp();
-    print("🔥 Firebase Initialized");
+    print("🔥 Firebase Initialized successfully");
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await NotificationService.initialize();
+
+    // ✅ 3. UPDATE: navigatorKey pass karein initialization mein
+    await NotificationService.initialize(navigatorKey);
   } catch (e) {
     debugPrint("❌ Firebase/Notification Init Error: $e");
   }
 
-  // 2. Setup Auth State
+  // Setup Auth State
   final authProvider = AuthProvider();
   await authProvider.checkLoginStatus();
 
-  // 3. Setup Theme State
+  // Setup Theme State
   final prefs = await SharedPreferences.getInstance();
   final bool isDark = prefs.getBool("theme_mode") ?? false;
 
   runApp(
     MultiProvider(
       providers: [
-        // Using .value because we initialized authProvider above to run checkLoginStatus
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => CourseProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider(isDark)),
@@ -59,17 +63,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We wrap the whole MaterialApp in a Consumer to handle theme and auth changes globally
     return Consumer2<AuthProvider, ThemeProvider>(
       builder: (context, auth, theme, child) {
         return MaterialApp(
+          // ✅ 4. IMPORTANT: MaterialApp mein navigatorKey assign karein
+          navigatorKey: navigatorKey,
+
           title: 'Shreeji GyanSetu',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: theme.themeMode,
 
-          // Using a conditional home directly here is often more reliable than a separate Wrapper widget
           home: auth.isAuthenticated
               ? const NavigationWrapper()
               : const LoginScreen(),
