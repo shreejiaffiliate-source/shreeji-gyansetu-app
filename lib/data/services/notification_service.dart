@@ -89,13 +89,25 @@ class NotificationService {
   static void _handleNavigation(Map<String, dynamic> data, GlobalKey<NavigatorState> navigatorKey) {
     developer.log("🚀 Handling Notification Click with Data: $data");
 
+    // Extract Notification ID from data payload
+    final dynamic rawNotifId = data['notification_id'];
+
     if (data.containsKey('lesson_id') && navigatorKey.currentContext != null) {
       final lessonId = int.tryParse(data['lesson_id'].toString());
 
       if (lessonId != null) {
         final courseProvider = Provider.of<CourseProvider>(navigatorKey.currentContext!, listen: false);
 
-        // Using helper method from CourseProvider to fix 'courses' getter error
+        // ✅ Step 1: Mark as Read locally and on server
+        if (rawNotifId != null) {
+          final int? notifId = int.tryParse(rawNotifId.toString());
+          if (notifId != null) {
+            courseProvider.markNotificationRead(notifId);
+            developer.log("✅ Marked Notification $notifId as Read");
+          }
+        }
+
+        // ✅ Step 2: Find Lesson and Navigate
         LessonModel? targetLesson = courseProvider.findLessonById(lessonId);
 
         if (targetLesson != null) {
@@ -108,7 +120,21 @@ class NotificationService {
             ),
           );
         } else {
-          developer.log("⚠️ Lesson ID $lessonId not found in local data.");
+          // Agar lesson local data mein nahi mila, toh home data refresh karo
+          developer.log("⚠️ Lesson ID $lessonId not found, refreshing data...");
+          courseProvider.fetchHomeData().then((_) {
+            LessonModel? refreshedLesson = courseProvider.findLessonById(lessonId);
+            if (refreshedLesson != null) {
+              navigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (context) => LessonPlayerScreen(
+                    lesson: refreshedLesson,
+                    openQueries: true,
+                  ),
+                ),
+              );
+            }
+          });
         }
       }
     }
