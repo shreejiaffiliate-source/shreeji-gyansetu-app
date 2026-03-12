@@ -1,13 +1,18 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../../core/utils/storage_service.dart';
 import '../models/course_model.dart';
+import '../services/notification_service.dart'; // Import your notification service
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final StorageService _storage = StorageService();
+
+  // --- ADDED STATIC TOKEN FOR NOTIFICATION SERVICE ---
+  static String? _staticToken;
+  static String? get storedToken => _staticToken;
+  // ---------------------------------------------------
 
   String? _token;
   UserModel? _user;
@@ -16,11 +21,16 @@ class AuthProvider with ChangeNotifier {
   bool get isAuthenticated => _token != null;
   bool get isAuthenticating => _isAuthenticating;
   UserModel? get user => _user;
+  String? get token => _token;
 
   // Check login status on app startup
   Future<void> checkLoginStatus() async {
     _token = await _storage.getToken();
-    if (_token != null){
+    _staticToken = _token; // Sync to static variable
+
+    if (_token != null) {
+      // If we found a token, sync it with Django for push notifications
+      NotificationService.getAndUploadToken();
       await fetchUserProfile();
     }
     notifyListeners();
@@ -29,8 +39,7 @@ class AuthProvider with ChangeNotifier {
   // New method to fetch User Profile data from Django
   Future<void> fetchUserProfile() async {
     try {
-      final response = await _apiService.getHomeData(); // Or a specific profile endpoint
-      // Assuming your home API or a dedicated profile API returns 'user' data
+      final response = await _apiService.getHomeData();
       if (response['user'] != null) {
         _user = UserModel.fromJson(response['user']);
         notifyListeners();
@@ -45,11 +54,17 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticating = true;
     notifyListeners();
 
-    final token = await _apiService.login(username, password);
+    final tokenResponse = await _apiService.login(username, password);
 
-    if (token != null) {
-      _token = token;
-      await _storage.saveToken(token);
+    if (tokenResponse != null) {
+      _token = tokenResponse;
+      _staticToken = tokenResponse; // Sync to static variable
+
+      await _storage.saveToken(tokenResponse);
+
+      // --- TRIGGER FCM TOKEN UPLOAD TO DJANGO ---
+      await NotificationService.getAndUploadToken();
+
       await fetchUserProfile();
       _isAuthenticating = false;
       notifyListeners();
@@ -75,7 +90,6 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticating = true;
     notifyListeners();
 
-    // Prepare the data map
     final Map<String, dynamic> registrationData = {
       'first_name': firstName,
       'last_name': lastName,
@@ -85,7 +99,6 @@ class AuthProvider with ChangeNotifier {
       'user_type': userType,
     };
 
-    // Add teacher fields only if necessary
     if (userType == 'Teacher') {
       registrationData['qualification'] = qualification;
       registrationData['experience'] = experience;
@@ -99,11 +112,10 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Update Profile
-
   Future<bool> updateProfile(Map<String, String> data, File? image) async {
     final success = await _apiService.updateFullProfile(fields: data, imageFile: image);
     if (success) {
-      await fetchUserProfile(); // Refresh local data from Django
+      await fetchUserProfile();
     }
     return success;
   }
@@ -111,6 +123,7 @@ class AuthProvider with ChangeNotifier {
   // Handle Logout
   Future<void> logout() async {
     _token = null;
+    _staticToken = null; // Clear static token
     _user = null;
     await _storage.logout();
     notifyListeners();

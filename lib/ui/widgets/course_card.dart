@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../data/models/course_model.dart';
 import '../../ui/animations/pulse_animation.dart';
@@ -12,42 +11,42 @@ class CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CourseDetailScreen(course: course),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      clipBehavior: Clip.antiAlias, // Ensures InkWell and Image follow border radius
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CourseDetailScreen(course: course),
             ),
-          ],
-        ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min, // Shrink-wraps the card height
           children: [
-            // 1. Thumbnail with Live Badge
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: CachedNetworkImage(
-                imageUrl: course.thumbnail,
-                height: 120,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(color: Colors.grey[200]),
-                errorWidget: (context, url, error) => const Icon(Icons.error),
-              ),
+            // 1. Thumbnail with Live Badge correctly positioned
+            Stack(
+              children: [
+                CachedNetworkImage(
+                  imageUrl: course.thumbnail,
+                  height: 120,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(color: Colors.grey[200]),
+                  errorWidget: (context, url, error) => const Icon(Icons.error),
+                ),
+                if (course.isLive)
+                  const Positioned(
+                    top: 8,
+                    left: 8,
+                    child: LiveBadge(), // Assuming LiveBadge is a widget from pulse_animation
+                  ),
+              ],
             ),
 
             // 2. Content Section
@@ -86,48 +85,49 @@ class CourseCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           course.teacherName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                         ),
                       ),
-                      if (course.isLive)
-                        const Positioned(
-                          top: 8,
-                          left: 8,
-                          child: LiveBadge(),
-                        ),
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12), // Reduced from 16 to save space
 
-                  // 4. Price Section (Matches Website Colors)
+                  // 4. Price Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            "₹${course.discountPrice}",
-                            style: const TextStyle(
-                              color: AppColors.primaryGreen,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          if (course.price != null) ...[
-                            const SizedBox(width: 4),
+                      Expanded(
+                        child: Row(
+                          children: [
                             Text(
-                              "₹${course.price}",
+                              "₹${course.discountPrice}",
                               style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 10,
-                                decoration: TextDecoration.lineThrough,
+                                color: AppColors.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
+                            if (course.price != null) ...[
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  "₹${course.price}",
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 10,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                      const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.borderColor),
+                      const Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.borderColor),
                     ],
                   ),
                 ],

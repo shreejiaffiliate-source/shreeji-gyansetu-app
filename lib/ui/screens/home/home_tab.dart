@@ -214,7 +214,7 @@ class _HomeTabState extends State<HomeTab> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 15,
                     mainAxisSpacing: 15,
-                    childAspectRatio: 0.70,
+                    childAspectRatio: 0.65,
                   ),
                   itemCount: courseProvider.popularCourses.length,
                   itemBuilder: (context, index) {
