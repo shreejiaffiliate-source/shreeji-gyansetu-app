@@ -1,5 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // Add this
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:gyansetu/ui/navigation_wrapper.dart';
 import 'package:gyansetu/ui/screens/auth/login_screen.dart';
@@ -11,10 +11,9 @@ import 'data/providers/auth_provider.dart';
 import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
 import 'data/services/notification_service.dart';
-import 'ui/animations/animated_splash_screen.dart';
 
-// 1. MUST be a top-level function (outside any class)
-// to handle notifications when app is in background or closed.
+// Background handler must be top-level
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   print("Background message received: ${message.messageId}");
@@ -23,28 +22,29 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Initialize Services
   try {
-    // 2. Initialize Firebase
     await Firebase.initializeApp();
+    print("🔥 Firebase Initialized");
 
-    // 3. Set background handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // 4. Initialize Notification Service
     await NotificationService.initialize();
   } catch (e) {
-    debugPrint("Firebase/Notification Init Error: $e");
+    debugPrint("❌ Firebase/Notification Init Error: $e");
   }
 
+  // 2. Setup Auth State
   final authProvider = AuthProvider();
   await authProvider.checkLoginStatus();
 
+  // 3. Setup Theme State
   final prefs = await SharedPreferences.getInstance();
   final bool isDark = prefs.getBool("theme_mode") ?? false;
 
   runApp(
     MultiProvider(
       providers: [
+        // Using .value because we initialized authProvider above to run checkLoginStatus
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => CourseProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider(isDark)),
@@ -59,49 +59,40 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    // We wrap the whole MaterialApp in a Consumer to handle theme and auth changes globally
+    return Consumer2<AuthProvider, ThemeProvider>(
+      builder: (context, auth, theme, child) {
+        return MaterialApp(
+          title: 'Shreeji GyanSetu',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: theme.themeMode,
 
-    return MaterialApp(
-      title: 'Shreeji GyanSetu',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeProvider.themeMode,
-      home: const AnimatedSplashScreen(),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/auth_wrapper': (context) => const AuthWrapper(),
+          // Using a conditional home directly here is often more reliable than a separate Wrapper widget
+          home: auth.isAuthenticated
+              ? const NavigationWrapper()
+              : const LoginScreen(),
+
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+          },
+        );
       },
     );
   }
 }
 
-class AppRoot extends StatelessWidget {
-  const AppRoot({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // This will rebuild every time notifyListeners() is called in AuthProvider
-    final authProvider = Provider.of<AuthProvider>(context);
-
-    if (authProvider.isAuthenticated) {
-      return const NavigationWrapper();
-    } else {
-      return const LoginScreen();
-    }
-  }
-}
-
+// Keeping this for route-based navigation if needed
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This watches the AuthProvider for any changes (login or logout)
-    final authProvider = Provider.of<AuthProvider>(context);
+    // Use watch to ensure the widget rebuilds on auth changes
+    final authProvider = context.watch<AuthProvider>();
 
-    // If a token exists, show the main app. If not, show the login screen.
     if (authProvider.isAuthenticated) {
       return const NavigationWrapper();
     } else {

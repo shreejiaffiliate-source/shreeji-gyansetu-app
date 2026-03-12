@@ -5,7 +5,8 @@ import '../../core/constants/api_endpoints.dart';
 import '../providers/auth_provider.dart';
 
 class NotificationService {
-  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // FIX: Use a getter so FirebaseMessaging.instance is only called AFTER Firebase.initializeApp()
+  static FirebaseMessaging get _messaging => FirebaseMessaging.instance;
 
   static Future<void> initialize() async {
     // 1. Request Permission (Required for iOS and Android 13+)
@@ -16,20 +17,25 @@ class NotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted notification permission');
+      print('🔔 Notification Permission Granted');
     }
+
+    // 2. Enable Foreground Notifications (So they show in the tray while app is open)
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
   }
 
-  // 2. Fetch the FCM Token and send it to Django
+  // 3. Fetch the FCM Token and send it to Django
   static Future<void> getAndUploadToken() async {
-    String? fcmToken = await _messaging.getToken();
+    try {
+      String? fcmToken = await _messaging.getToken();
+      final String? userToken = AuthProvider.storedToken;
 
-    // Using the static getter we added to AuthProvider earlier
-    final String? userToken = AuthProvider.storedToken;
-
-    if (fcmToken != null && userToken != null) {
-      print("📲 Attempting to sync FCM Token: $fcmToken");
-      try {
+      if (fcmToken != null && userToken != null) {
+        print("📲 Attempting to sync FCM Token: $fcmToken");
         final response = await http.post(
           Uri.parse("${ApiEndpoints.baseUrl}/profile/update-fcm/"),
           headers: {
@@ -40,15 +46,15 @@ class NotificationService {
         );
 
         if (response.statusCode == 200) {
-          print("FCM Token successfully synced with Django server.");
-        } else{
+          print("✅ FCM Token successfully synced with Django server.");
+        } else {
           print("❌ Failed to sync token. Status: ${response.statusCode}, Body: ${response.body}");
         }
-      } catch (e) {
-        print("⚠️ Connection error while uploading FCM token: $e");
+      } else {
+        print("ℹ️ Skipping token upload: FCM Token or User Auth Token is null.");
       }
-    } else{
-      print("ℹ️ Skipping token upload: FCM Token or User Auth Token is null.");
+    } catch (e) {
+      print("⚠️ Error in getAndUploadToken: $e");
     }
   }
 }

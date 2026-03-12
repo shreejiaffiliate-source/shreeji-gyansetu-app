@@ -54,21 +54,32 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticating = true;
     notifyListeners();
 
-    final tokenResponse = await _apiService.login(username, password);
+    try {
+      final tokenResponse = await _apiService.login(username, password);
 
-    if (tokenResponse != null) {
-      _token = tokenResponse;
-      _staticToken = tokenResponse; // Sync to static variable
+      if (tokenResponse != null) {
+        _token = tokenResponse;
+        _staticToken = tokenResponse;
+        await _storage.saveToken(tokenResponse);
 
-      await _storage.saveToken(tokenResponse);
+        // --- CRITICAL: FIREBASE CRASH-PROOFING ---
+        // Humne isse try-catch mein dala hai taaki error aane par bhi login na ruke.
+        try {
+          await NotificationService.getAndUploadToken();
+          print("✅ FCM Sync Attempted");
+        } catch (firebaseErr) {
+          // Agar Firebase initialized nahi hai toh sirf print karega, app nahi rukegi
+          print("⚠️ Firebase Error (Syncing later): $firebaseErr");
+        }
 
-      // --- TRIGGER FCM TOKEN UPLOAD TO DJANGO ---
-      await NotificationService.getAndUploadToken();
+        await fetchUserProfile();
 
-      await fetchUserProfile();
-      _isAuthenticating = false;
-      notifyListeners();
-      return true;
+        _isAuthenticating = false;
+        notifyListeners(); // 🔥 Ab ye line pakka chalegi aur screen badal jayegi!
+        return true;
+      }
+    } catch (e) {
+      print("❌ API Login Error: $e");
     }
 
     _isAuthenticating = false;

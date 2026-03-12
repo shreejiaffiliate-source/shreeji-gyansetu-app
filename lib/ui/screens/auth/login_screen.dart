@@ -36,10 +36,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (success) {
+      // REMOVE Navigator.pushReplacement
+      // The AuthWrapper in main.dart will notice isAuthenticated is now true
+      // and will rebuild the UI automatically.
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NavigationWrapper()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login Successful!")),
         );
       }
     } else {
