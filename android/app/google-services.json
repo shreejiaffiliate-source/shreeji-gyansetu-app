@@ -12,7 +12,20 @@
           "package_name": "com.example.gyansetu"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "305890739233-o70dcbod849mgjjgu4hajnkla6ltluod.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.gyansetu",
+            "certificate_hash": "9b53b1cf859bef0debaf83d48750fd10e6a31393"
+          }
+        },
+        {
+          "client_id": "305890739233-vl7frn1tvpo8kigp17aost7ffa86aidh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBX1cbcMoBeI_WnWPP40vnMa6K5EMTtezw"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "305890739233-vl7frn1tvpo8kigp17aost7ffa86aidh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
