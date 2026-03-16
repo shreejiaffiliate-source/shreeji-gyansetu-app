@@ -98,7 +98,7 @@ class LessonModel {
   final String videoUrl;
   final bool isPreview;
   final String? notesUrl;
-  final double lastPosition;
+  double lastPosition;
   final String? resources;
   final bool isCompleted;
 

@@ -9,7 +9,7 @@ import '../../core/utils/storage_service.dart';
 class ApiService {
   final StorageService _storage = StorageService();
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: ApiEndpoints.baseUrl, // Replace with your Django API URL
+    baseUrl: ApiEndpoints.baseUrl,
     connectTimeout: const Duration(seconds: 5),
     receiveTimeout: const Duration(seconds: 3),
   ));
@@ -42,7 +42,7 @@ class ApiService {
   Future<List<dynamic>> getAllCourses() async {
     final response = await http.get(
       Uri.parse(ApiEndpoints.courses),
-      headers: await _getHeaders(), // <-- ADD THIS LINE
+      headers: await _getHeaders(),
     );
 
     if (response.statusCode == 200) {
@@ -52,41 +52,88 @@ class ApiService {
     }
   }
 
-  // 3. Login Service
-  Future<String?> login(String username, String password) async {
-    final response = await http.post(
-      Uri.parse(ApiEndpoints.login),
-      body: json.encode({'username': username, 'password': password}),
-      headers: {'Content-Type': 'application/json'},
-    );
+  // --- NEW: Smart Login (Supports Username or Email) ---
+  Future<Map<String, dynamic>?> login(String loginId, String password) async {
+    try {
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return data['token']; // The DRF Token
+      final String loginUrl = "${ApiEndpoints.baseUrl}/login/";
+      debugPrint("Connecting to: $loginUrl");
+
+      final response = await http.post(
+        Uri.parse(loginUrl),
+        body: json.encode({
+          'login_id': loginId.trim(), // Can be email or username
+          'password': password
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body); // Returns token, username, user_type
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error'] ?? 'Login failed');
+      }
+    } catch (e) {
+      rethrow;
     }
-    return null;
   }
 
-// Register Service
-
-  Future<bool> register(Map<String, dynamic> data) async {
+  // --- NEW: Registration with OTP ---
+  Future<bool> apiRegister(Map<String, dynamic> data) async {
     try {
       final response = await http.post(
         Uri.parse("${ApiEndpoints.baseUrl}/register/"),
-        body: data,
+        body: json.encode(data),
+        headers: {'Content-Type': 'application/json'},
       );
-
-      // Django usually returns 201 Created for successful registration
-      return response.statusCode == 201 || response.statusCode == 200;
+      return response.statusCode == 201;
     } catch (e) {
       debugPrint("Registration Error: $e");
       return false;
     }
   }
 
+  // --- NEW: Verify Email OTP ---
+  Future<Map<String, dynamic>?> verifyEmailOtp(String email, String otp) async {
+    try {
+      final response = await http.post(
+        Uri.parse("${ApiEndpoints.baseUrl}/verify-email/"),
+        body: json.encode({'email': email, 'otp': otp}),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body); // Returns token on success
+      }
+      return null;
+    } catch (e) {
+      debugPrint("OTP Verification Error: $e");
+      return null;
+    }
+  }
+
+  // --- NEW: Google Sign-In ---
+  Future<Map<String, dynamic>?> googleLogin(Map<String, dynamic> googleData) async {
+    try {
+      final response = await http.post(
+        Uri.parse("${ApiEndpoints.baseUrl}/google-login/"),
+        body: json.encode(googleData),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Google Login Error: $e");
+      return null;
+    }
+  }
+
   // 4. Fetch Courses by Category Slug
   Future<List<dynamic>> getCoursesByCategory(String categorySlug) async {
-    // Appends the slug as a query parameter: ?category_slug=your-slug
     final response = await http.get(
       Uri.parse("${ApiEndpoints.courses}?category_slug=$categorySlug"),
       headers: await _getHeaders(),
@@ -97,16 +144,12 @@ class ApiService {
     } else {
       throw Exception('Failed to load category courses');
     }
-
-    // 5. To Enroll is Courses
-
   }
 
+  // 5. Enroll in Course
   Future<bool> enrollInCourse(int courseId, String paymentId) async {
     try {
-      // Ensure you use your helper to get the Auth Token
       final headers = await _getHeaders();
-
       final response = await http.post(
         Uri.parse('${ApiEndpoints.baseUrl}/enroll/'),
         headers: headers,
@@ -115,7 +158,6 @@ class ApiService {
           'razorpay_payment_id': paymentId,
         }),
       );
-
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       debugPrint("Enrollment Error: $e");
@@ -123,8 +165,7 @@ class ApiService {
     }
   }
 
-  // Update Profile
-
+  // 6. Update Profile
   Future<bool> updateFullProfile({
     required Map<String, String> fields,
     File? imageFile,
@@ -145,9 +186,10 @@ class ApiService {
     return response.statusCode == 200;
   }
 
+  // 7. Change Password
   Future<bool> changePassword(String oldPass, String newPass) async {
     final response = await http.post(
-      Uri.parse("${ApiEndpoints.baseUrl}/change-password/"), // Ensure this matches urls.py
+      Uri.parse("${ApiEndpoints.baseUrl}/change-password/"),
       body: json.encode({
         'old_password': oldPass,
         'new_password': newPass,
@@ -157,34 +199,23 @@ class ApiService {
     return response.statusCode == 200;
   }
 
-// Lesson Progress
-
+  // 8. Lesson Progress Tracking
   Future<bool> markLessonAsComplete(int lessonId) async {
     try {
-      // FIX: Use your existing helper instead of _storage.read
       final headers = await _getHeaders();
-
       final response = await http.post(
-        // FIX: Use ApiEndpoints.baseUrl instead of undefined baseUrl
         Uri.parse('${ApiEndpoints.baseUrl}/lessons/$lessonId/complete/'),
         headers: headers,
       );
-
-      if (response.statusCode == 200) {
-        debugPrint("Lesson $lessonId marked complete successfully.");
-        return true;
-      }
-      return false;
+      return response.statusCode == 200;
     } catch (e) {
       debugPrint("Error marking lesson complete: $e");
       return false;
     }
   }
-  Future<List<dynamic>> getMyCourses() async {
-    // 1. Generate a unique timestamp to force a fresh request
-    final String cacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
 
-    // 2. Append the timestamp to the URL (e.g., .../api/my-learning/?t=1709450000)
+  Future<List<dynamic>> getMyCourses() async {
+    final String cacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
     final String url = "${ApiEndpoints.myLearning}?t=$cacheBuster";
 
     final response = await http.get(
@@ -193,25 +224,54 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      // Debug print to verify the fresh data is arriving
-      final List<dynamic> data = json.decode(response.body);
-      debugPrint("API: Fetched fresh progress data: $data");
-      return data;
+      return json.decode(response.body);
     } else {
       throw Exception('Failed to load enrolled courses');
     }
   }
 
-  Future<bool> postLessonQuery(int lessonId, String question) async {
-    final url = "${ApiEndpoints.baseUrl}/lessons/$lessonId/query/"; // Matches Django URL
+  Future<void> updateVideoProgress(int lessonId, double seconds) async {
+    try {
+      final Map<String, String> authHeaders = await _getHeaders();
+      await _dio.post(
+        '/lessons/$lessonId/update-progress/',
+        data: {'last_position': seconds},
+        options: Options(headers: authHeaders),
+      );
+    } catch (e) {
+      debugPrint("Error syncing progress: $e");
+    }
+  }
 
+  // ✅ NEW: Get latest video position from backend
+  Future<double?> getLatestVideoProgress(int lessonId) async {
+    try {
+      // Hum direct http use kar rahe hain consistent rehne ke liye
+      final response = await http.get(
+        Uri.parse("${ApiEndpoints.baseUrl}/lessons/$lessonId/update-progress/"), // ✅ Check backend URL
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Backend agar 'last_position' ya 'saved_position' bhej raha hai toh wahi use karein
+        return double.tryParse(data['last_position'].toString());
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching latest progress: $e");
+      return null;
+    }
+  }
+
+  // 9. Queries & Notifications
+  Future<bool> postLessonQuery(int lessonId, String question) async {
     try {
       final response = await http.post(
-        Uri.parse(url),
+        Uri.parse("${ApiEndpoints.baseUrl}/lessons/$lessonId/query/"),
         headers: await _getHeaders(),
         body: jsonEncode({"question": question}),
       );
-
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       debugPrint("Error posting query: $e");
@@ -219,20 +279,13 @@ class ApiService {
     }
   }
 
-  // lib/data/services/api_service.dart
-
   Future<List<dynamic>> getLessonQueries(int lessonId) async {
-    final url = "${ApiEndpoints.baseUrl}/lessons/$lessonId/queries/list/";
-
     try {
       final response = await http.get(
-        Uri.parse(url),
+        Uri.parse("${ApiEndpoints.baseUrl}/lessons/$lessonId/queries/list/"),
         headers: await _getHeaders(),
       );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return [];
     } catch (e) {
       debugPrint("Error fetching queries: $e");
@@ -241,35 +294,24 @@ class ApiService {
   }
 
   Future<List<dynamic>> getNotifications() async {
-    // Use a cache buster to ensure the badge updates in real-time
     final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final String url = "${ApiEndpoints.baseUrl}/notifications/?t=$timestamp";
-
     try {
       final response = await http.get(
-        Uri.parse(url),
-        headers: await _getHeaders(), // Essential for IsAuthenticated check
+        Uri.parse("${ApiEndpoints.baseUrl}/notifications/?t=$timestamp"),
+        headers: await _getHeaders(),
       );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        debugPrint("API Error: ${response.statusCode} - ${response.body}");
-        return [];
-      }
+      if (response.statusCode == 200) return json.decode(response.body);
+      return [];
     } catch (e) {
       debugPrint("Network Error fetching notifications: $e");
       return [];
     }
   }
 
-// Helper to clear the notification once clicked
   Future<bool> markNotificationAsRead(int notificationId) async {
-    final String url = "${ApiEndpoints.baseUrl}/notifications/$notificationId/read/";
-
     try {
       final response = await http.post(
-        Uri.parse(url),
+        Uri.parse("${ApiEndpoints.baseUrl}/notifications/$notificationId/read/"),
         headers: await _getHeaders(),
       );
       return response.statusCode == 200;
@@ -278,31 +320,16 @@ class ApiService {
     }
   }
 
-  Future<void> updateVideoProgress(int lessonId, double seconds) async {
+  Future<bool> resendOtp(String email) async {
     try {
-      // 1. Get the headers that contain your 'Token <key>'
-      final Map<String, String> authHeaders = await _getHeaders();
-
-      // 2. Use the _dio instance which already knows the baseUrl
-      // Ensure the path starts with / and matches your Django urls.py
-      final response = await _dio.post(
-        '/lessons/$lessonId/update-progress/',
-        data: {
-          'last_position': seconds,
-        },
-        options: Options(
-          headers: authHeaders, // This fixes the 401 Unauthorized
-        ),
+      final response = await http.post(
+        Uri.parse("${ApiEndpoints.baseUrl}/resend-otp/"),
+        body: json.encode({'email': email}),
+        headers: {'Content-Type': 'application/json'},
       );
-
-      debugPrint("Sync Success: Saved $seconds seconds for lesson $lessonId");
+      return response.statusCode == 200;
     } catch (e) {
-      // This will catch 404, 401, or network errors
-      debugPrint("Error syncing progress: $e");
+      return false;
     }
   }
 }
-
-
-
-

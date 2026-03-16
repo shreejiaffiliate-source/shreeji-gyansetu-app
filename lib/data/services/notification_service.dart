@@ -16,6 +16,7 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize(GlobalKey<NavigatorState> navigatorKey) async {
+    // Permission request
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -38,14 +39,22 @@ class NotificationService {
       },
     );
 
+    // 1. Handle background notification click
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       _handleNavigation(message.data, navigatorKey);
     });
 
+    // 2. Handle terminated state notification click
     _messaging.getInitialMessage().then((RemoteMessage? message) {
       if (message != null) {
         _handleNavigation(message.data, navigatorKey);
       }
+    });
+
+    // 3. LISTEN FOR TOKEN REFRESH: Agar app chalte waqt token badal jaye
+    _messaging.onTokenRefresh.listen((newToken) {
+      developer.log("🔄 FCM Token Refreshed: $newToken");
+      getAndUploadToken();
     });
 
     await _localNotifications
@@ -58,6 +67,7 @@ class NotificationService {
       sound: true,
     );
 
+    // Foreground listener
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       RemoteNotification? notification = message.notification;
       String? title = notification?.title ?? message.data['title'];
@@ -89,7 +99,9 @@ class NotificationService {
   static void _handleNavigation(Map<String, dynamic> data, GlobalKey<NavigatorState> navigatorKey) {
     developer.log("🚀 Handling Notification Click with Data: $data");
 
-    // Extract Notification ID from data payload
+    // ✅ Tray se notifications saaf karein aur icon badge hatayein
+    _localNotifications.cancelAll();
+
     final dynamic rawNotifId = data['notification_id'];
 
     if (data.containsKey('lesson_id') && navigatorKey.currentContext != null) {
@@ -98,7 +110,7 @@ class NotificationService {
       if (lessonId != null) {
         final courseProvider = Provider.of<CourseProvider>(navigatorKey.currentContext!, listen: false);
 
-        // ✅ Step 1: Mark as Read locally and on server
+        // Step 1: Mark as Read locally and on server
         if (rawNotifId != null) {
           final int? notifId = int.tryParse(rawNotifId.toString());
           if (notifId != null) {
@@ -107,7 +119,7 @@ class NotificationService {
           }
         }
 
-        // ✅ Step 2: Find Lesson and Navigate
+        // Step 2: Find Lesson and Navigate
         LessonModel? targetLesson = courseProvider.findLessonById(lessonId);
 
         if (targetLesson != null) {
@@ -120,7 +132,6 @@ class NotificationService {
             ),
           );
         } else {
-          // Agar lesson local data mein nahi mila, toh home data refresh karo
           developer.log("⚠️ Lesson ID $lessonId not found, refreshing data...");
           courseProvider.fetchHomeData().then((_) {
             LessonModel? refreshedLesson = courseProvider.findLessonById(lessonId);
@@ -145,6 +156,8 @@ class NotificationService {
       String? fcmToken = await _messaging.getToken();
       final String? userToken = AuthProvider.storedToken;
 
+      developer.log("📱 Current FCM Token: $fcmToken");
+
       if (fcmToken != null && userToken != null) {
         final response = await http.post(
           Uri.parse("${ApiEndpoints.baseUrl}/profile/update-fcm/"),
@@ -154,7 +167,12 @@ class NotificationService {
           },
           body: jsonEncode({'fcm_token': fcmToken}),
         );
-        developer.log("✅ FCM Token synced: ${response.statusCode}");
+
+        if (response.statusCode == 200) {
+          developer.log("✅ FCM Token synced with Server");
+        } else {
+          developer.log("⚠️ Token sync failed: ${response.statusCode}");
+        }
       }
     } catch (e) {
       developer.log("⚠️ Token upload error: $e");

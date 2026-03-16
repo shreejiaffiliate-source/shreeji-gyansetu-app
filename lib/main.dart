@@ -12,7 +12,7 @@ import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
 import 'data/services/notification_service.dart';
 
-// ✅ 1. GLOBAL NAVIGATOR KEY: Navigation handle karne ke liye top-level par define karein
+// ✅ 1. GLOBAL NAVIGATOR KEY
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Background handler must be top-level
@@ -32,8 +32,13 @@ void main() async {
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // ✅ 3. UPDATE: navigatorKey pass karein initialization mein
+    // 3. Setup Notification Service
     await NotificationService.initialize(navigatorKey);
+
+    // ✅ 4. AUTO-SYNC TOKEN: Har baar app khulte hi latest token server par bhejein
+    // Ye tabhi upload karega agar AuthProvider.storedToken null nahi hai
+    await NotificationService.getAndUploadToken();
+
   } catch (e) {
     debugPrint("❌ Firebase/Notification Init Error: $e");
   }
@@ -66,7 +71,7 @@ class MyApp extends StatelessWidget {
     return Consumer2<AuthProvider, ThemeProvider>(
       builder: (context, auth, theme, child) {
         return MaterialApp(
-          // ✅ 4. IMPORTANT: MaterialApp mein navigatorKey assign karein
+          // ✅ Navigator Key register karein
           navigatorKey: navigatorKey,
 
           title: 'Shreeji GyanSetu',
@@ -89,15 +94,12 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Keeping this for route-based navigation if needed
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Use watch to ensure the widget rebuilds on auth changes
     final authProvider = context.watch<AuthProvider>();
-
     if (authProvider.isAuthenticated) {
       return const NavigationWrapper();
     } else {

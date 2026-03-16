@@ -18,7 +18,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   final List<String> _categories = ['All', 'Courses', 'Videos', 'Enrollment', 'Account'];
 
   final List<Map<String, String>> _allFaqs = [
-    {'category': 'Courses', 'q': 'How do I search for a course?', 'a': 'Use the search bar on the home screen or filter by categories.'},
+    {'category': 'Courses', 'q': 'How do I search for a course?', 'a': 'Use the search bar on the course screen or filter by categories.'},
     {'category': 'Videos', 'q': 'Can I watch videos offline?', 'a': 'Currently, videos require an active internet connection to stream.'},
     {'category': 'Enrollment', 'q': 'How do I enroll in a course?', 'a': 'Open the course details and tap the "Enroll" button.'},
     {'category': 'Account', 'q': 'How to change my password?', 'a': 'Go to Profile -> Change Password to update your security credentials.'},

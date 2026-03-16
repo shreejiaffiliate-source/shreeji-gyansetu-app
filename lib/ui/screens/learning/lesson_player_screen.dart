@@ -35,12 +35,30 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    // ✅ STEP 1: Pehle fresh progress fetch karo server se
+    _fetchProgressAndInitialize();
 
     if (widget.openQueries) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showQueryBottomSheet(context);
       });
+    }
+  }
+
+  // ✅ NEW: Fresh fetching logic before player init
+  Future<void> _fetchProgressAndInitialize() async {
+    try {
+      final double? freshPos = await _apiService.getLatestVideoProgress(widget.lesson.id);
+      if (freshPos != null && mounted) {
+        setState(() {
+          widget.lesson.lastPosition = freshPos;
+          _lastSyncedPosition = freshPos; // 👈 Add this line to avoid immediate re-sync
+        });
+      }
+    } catch (e) {
+      debugPrint("Resume Fetch Error: $e");
+    } finally {
+      _initializePlayer();
     }
   }
 
@@ -51,11 +69,9 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       );
       await _videoPlayerController!.initialize();
 
-      // 1. RESUME LOGIC: Seek to last saved position.
-      // We check if it's at least 2 seconds in and not at the very end.
-      if (widget.lesson.lastPosition > 2) {
+      // ✅ RESUME LOGIC: Ab ye fresh data use karega
+      if (widget.lesson.lastPosition > 1) {
         final target = Duration(seconds: widget.lesson.lastPosition.toInt());
-        // Ensure target isn't longer than video
         if (target < _videoPlayerController!.value.duration) {
           await _videoPlayerController!.seekTo(target);
         }
@@ -75,15 +91,16 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ),
       );
 
-      // 2. START BACKGROUND SYNC: Syncs every 10 seconds while playing
       _startProgressTimer();
 
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "Could not load video.";
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Could not load video.";
+        });
+      }
     }
   }
 
@@ -174,7 +191,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     if (_videoPlayerController != null && _videoPlayerController!.value.isPlaying) {
       final currentPos = _videoPlayerController!.value.position.inSeconds.toDouble();
 
-      // Only hit the API if the user has moved at least 2 seconds since last sync
+      // Sync if moved more than 2 seconds
       if (!_isCompleted && (currentPos - _lastSyncedPosition).abs() >= 2) {
         _apiService.updateVideoProgress(widget.lesson.id, currentPos);
         _lastSyncedPosition = currentPos;
@@ -187,16 +204,14 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     final pos = _videoPlayerController!.value.position;
     final dur = _videoPlayerController!.value.duration;
 
-    if (dur != Duration.zero && pos >= (dur - const Duration(milliseconds: 500))) {
+    if (dur != Duration.zero && pos >= (dur - const Duration(milliseconds: 800))) {
       setState(() => _isCompleted = true);
       _handleLessonCompletion();
     }
   }
 
   void _handleLessonCompletion() async {
-    // Reset synced position locally so final dispose doesn't overwrite completion with "end of video"
     _lastSyncedPosition = 0;
-
     final courseProvider = Provider.of<CourseProvider>(context, listen: false);
     await courseProvider.completeLesson(widget.lesson.id);
 
@@ -209,6 +224,22 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _progressSyncTimer?.cancel();
+
+    // FINAL SYNC on exit
+    if (_videoPlayerController != null && !_isCompleted) {
+      final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
+      _apiService.updateVideoProgress(widget.lesson.id, finalPos);
+    }
+
+    _videoPlayerController?.removeListener(_videoListener);
+    _videoPlayerController?.dispose();
+    _chewieController?.dispose();
+    super.dispose();
   }
 
   void _showQueryBottomSheet(BuildContext context) async {
@@ -385,22 +416,6 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
     _videoPlayerController?.play();
   }
 
-  @override
-  void dispose() {
-    _progressSyncTimer?.cancel();
-
-    // FINAL SYNC: Save exactly where the user left off before closing
-    if (_videoPlayerController != null && !_isCompleted) {
-      final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
-      _apiService.updateVideoProgress(widget.lesson.id, finalPos);
-    }
-
-    _videoPlayerController?.removeListener(_videoListener);
-    _videoPlayerController?.dispose();
-    _chewieController?.dispose();
-    super.dispose();
-  }
-
   void _showFeatureSnackBar(String message) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -411,12 +426,10 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-
     return PopScope(
       canPop: true,
-      onPopInvokedWithResult: (didPop, result) async {
-        // Force an immediate final sync when the user hits 'Back'
+      onPopInvokedWithResult: (didPop, result) async { // 👈 Change this line
+        if (didPop) return;
         if (_videoPlayerController != null && !_isCompleted) {
           final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
           await _apiService.updateVideoProgress(widget.lesson.id, finalPos);
@@ -456,11 +469,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     children: [
                       _buildActionIcon(Icons.description, "Notes", onTap: () async {
                         if (widget.lesson.notesUrl != null && widget.lesson.notesUrl!.isNotEmpty) {
-      
-                          // 1. Pause the video before moving to the next screen
                           _videoPlayerController?.pause();
-      
-                          // 2. Wait for the user to return from the PDF screen
                           await Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -470,30 +479,19 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                                   )
                               )
                           );
-      
-                          // 3. Resume the video automatically when they come back
                           _videoPlayerController?.play();
-      
                         } else {
                           _showFeatureSnackBar("No notes available.");
                         }
                       }),
-                      _buildActionIcon(
-                          Icons.question_answer,
-                          "Ask Query",
-                          onTap: () => _showQueryBottomSheet(context)
-                      ),
-                      _buildActionIcon(
-                          Icons.download,
-                          "Resources",
-                          onTap: () {
-                            if (widget.lesson.resources != null && widget.lesson.resources!.isNotEmpty) {
-                              _showResourcesBottomSheet(context);
-                            } else {
-                              _showFeatureSnackBar("No resources available for this lesson.");
-                            }
-                          }
-                      ),
+                      _buildActionIcon(Icons.question_answer, "Ask Query", onTap: () => _showQueryBottomSheet(context)),
+                      _buildActionIcon(Icons.download, "Resources", onTap: () {
+                        if (widget.lesson.resources != null && widget.lesson.resources!.isNotEmpty) {
+                          _showResourcesBottomSheet(context);
+                        } else {
+                          _showFeatureSnackBar("No resources available.");
+                        }
+                      }),
                     ],
                   ),
                 ],

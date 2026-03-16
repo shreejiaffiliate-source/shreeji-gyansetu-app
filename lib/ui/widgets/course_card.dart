@@ -40,56 +40,43 @@ class CourseCard extends StatelessWidget {
                   placeholder: (context, url) => Container(color: Colors.grey[200]),
                   errorWidget: (context, url, error) => const Icon(Icons.error),
                 ),
-                if (course.isLive)
-                  const Positioned(
-                    top: 8,
-                    left: 8,
-                    child: LiveBadge(), // Assuming LiveBadge is a widget from pulse_animation
-                  ),
               ],
             ),
 
             // 2. Content Section
             Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    course.categoryName.toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.primaryCyan,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
                     course.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      height: 1.2,
-                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
-                  // 3. Teacher Info
+                  // ✅ Live indicator next to teacher name
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.person, size: 12, color: AppColors.textMuted),
+                      const Icon(Icons.person, size: 14, color: AppColors.textMuted),
                       const SizedBox(width: 4),
-                      Expanded(
+                      Flexible(
                         child: Text(
                           course.teacherName,
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                         ),
                       ),
+
+                      // Agar live hai toh badge yahan aayega
+                      if (course.isLive) ...[
+                        const SizedBox(width: 24),
+                        const LiveBadge(),
+                      ],
                     ],
                   ),
 

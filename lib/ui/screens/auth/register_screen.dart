@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -29,6 +30,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedUserType = 'Student'; // Default choice
 
   void _handleRegister() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill in all mandatory fields")),
+      );
+      return;
+    }
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final success = await authProvider.register(
@@ -41,15 +49,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
       qualification: _qualificationController.text.trim(),
       experience: _experienceController.text.trim(),
     );
+
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Register Successful! Please Login")),
-      );
-      Navigator.pop(context);
-    } else
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Register Failed. Username/Email might be taken")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("OTP has been sent to your email!")),
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(email: _emailController.text.trim()),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Register Failed. Username/Email might be taken")),
+        );
+      }
+    }
   }
 
   @override

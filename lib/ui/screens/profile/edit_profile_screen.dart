@@ -90,9 +90,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: GestureDetector(
                 onTap: _pickImage,
                 child: CircleAvatar(
+                  backgroundColor: AppColors.primaryBlue,
                   radius: 50,
                   backgroundImage: _imageFile != null ? FileImage(_imageFile!) : null,
-                  child: _imageFile == null ? const Icon(Icons.camera_alt, size: 40) : null,
+                  child: _imageFile == null ? const Icon(Icons.camera_alt, size: 40, color: Colors.white,) : null,
                 ),
               ),
             ),
@@ -158,24 +159,51 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         readOnly: readOnly,
         onTap: onTap,
+        cursorColor: AppColors.primaryBlue, // Cursor ka color bhi match kar diya
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          labelStyle: const TextStyle(color: AppColors.textMuted),
+          // Jab field selected/focused ho
+          // floatingLabelStyle: const TextStyle(color: AppColors.primaryBlue),
+
+          // Default border (binas select kiye)
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.borderColor),
+          ),
+
+          // ✅ Yeh hai fix: Jab field select ho (Focused)
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
+          ),
+
+          // Error border (optional but recommended)
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
+          ),
+
           suffixIcon: suffixIcon,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
     );
   }
 }
 
-  Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, TextInputType? keyboardType}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-      ),
-    );
-  }
+  // Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, TextInputType? keyboardType}) {
+  //   return Padding(
+  //     padding: const EdgeInsets.only(bottom: 15),
+  //     child: TextFormField(
+  //       controller: controller,
+  //       maxLines: maxLines,
+  //       keyboardType: keyboardType,
+  //       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+  //     ),
+  //   );
+  // }
