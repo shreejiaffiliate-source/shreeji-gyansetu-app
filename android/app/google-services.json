@@ -1,41 +1,41 @@
 {
   "project_info": {
-    "project_number": "305890739233",
-    "project_id": "shreeji-gyansetu",
-    "storage_bucket": "shreeji-gyansetu.firebasestorage.app"
+    "project_number": "281789689411",
+    "project_id": "gyansetu-524f5",
+    "storage_bucket": "gyansetu-524f5.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:305890739233:android:7fa71ff921622b5a2e0f60",
+        "mobilesdk_app_id": "1:281789689411:android:3df265260e0dc52073aef6",
         "android_client_info": {
           "package_name": "com.example.gyansetu"
         }
       },
       "oauth_client": [
         {
-          "client_id": "305890739233-o70dcbod849mgjjgu4hajnkla6ltluod.apps.googleusercontent.com",
+          "client_id": "281789689411-hhkm5p2cn1ukqfp9hsj9sufoehtto0a0.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.gyansetu",
-            "certificate_hash": "9b53b1cf859bef0debaf83d48750fd10e6a31393"
+            "certificate_hash": "1d3d4e782b8cbd75377be31697e96c973e40d3c8"
           }
         },
         {
-          "client_id": "305890739233-vl7frn1tvpo8kigp17aost7ffa86aidh.apps.googleusercontent.com",
+          "client_id": "281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyBX1cbcMoBeI_WnWPP40vnMa6K5EMTtezw"
+          "current_key": "AIzaSyDujMiPXIujtdlDPMu1jMyAvNnHfYLxckw"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "305890739233-vl7frn1tvpo8kigp17aost7ffa86aidh.apps.googleusercontent.com",
+              "client_id": "281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

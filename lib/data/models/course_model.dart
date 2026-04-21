@@ -163,26 +163,25 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    // 1. Extract the nested profile dictionary safely
+    // 1. Profile ko safely handle karo
     final Map<String, dynamic> profile = json['profile'] ?? {};
 
     return UserModel(
-      id: json['id'],
+      id: json['id'] ?? 0,
       username: json['username'] ?? '',
       email: json['email'] ?? '',
-      firstName: json['first_name'],
-      lastName: json['last_name'],
-      // 2. Map fields from the nested profile object
-      userType: profile['user_type'] ?? 'Student',
-      // Ensure these keys match your Django Profile model fields exactly
-      phoneNumber: profile['phone_number'],
-      collegeName: profile['college_name'],
-      branch: profile['branch'],
-      enrollmentNumber: profile['enrollment_number'],
-      qualification: profile['qualification'],
-      dateOfBirth: profile['date_of_birth'],
-      bio: profile['bio'],
-      // 3. Use the absolute URL from the SerializerMethodField if you added it
+
+      // ✅ Pehle root check karo, fir profile, fir empty string
+      firstName: (json['first_name'] ?? profile['first_name'] ?? "").toString(),
+      lastName: (json['last_name'] ?? profile['last_name'] ?? "").toString(),
+
+      userType: profile['user_type']?.toString() ?? 'Student',
+      collegeName: profile['college_name']?.toString() ?? '',
+      branch: profile['branch']?.toString() ?? '',
+      enrollmentNumber: profile['enrollment_number']?.toString() ?? '',
+      qualification: profile['qualification']?.toString() ?? '',
+      dateOfBirth: profile['date_of_birth']?.toString() ?? '',
+      bio: profile['bio']?.toString() ?? '',
       profilePhoto: json['profile_photo'] ?? profile['photo'],
     );
   }

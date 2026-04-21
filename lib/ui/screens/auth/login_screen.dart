@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isObscured = true;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '305890739233-vl7frn1tvpo8kigp17aost7ffa86aidh.apps.googleusercontent.com',
+    serverClientId: '281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com',
   );
 
   void _handleGoogleLogin() async {
@@ -59,35 +59,61 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleLogin() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (_loginController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please fill in all fields")));
+    final loginId = _loginController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // 1. Client-side Validation (Jo khali hai sirf uska message)
+    if (loginId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter your Username or Email")),
+      );
+      return;
+    }
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter your Password")),
+      );
       return;
     }
 
     try {
-      bool success = await authProvider.login(
-        _loginController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      bool success = await authProvider.login(loginId, password);
 
       if (!mounted) return;
+
       if (success) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const NavigationWrapper()),
               (route) => false,
         );
       }
+      // Note: Agar API 'false' return karti hai bina error ke,
+      // toh backend ko fix karna padega ki wo 'exception' throw kare.
     } catch (e) {
-      String errorMessage = e.toString().replaceAll("Exception: ", "");
-      if (!mounted) return;
-      if (errorMessage.contains("Email not verified")) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => OtpVerificationScreen(email: _loginController.text.trim())),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+      String originalError = e.toString().toLowerCase();
+      String displayMessage = "";
+
+      // ✅ Server Down Check (Agar connection refused ya timeout ho)
+      if (originalError.contains("socketexception") || originalError.contains("timeout")) {
+        displayMessage = "Server is not reachable. Please check your connection.";
       }
+      else if (originalError.contains("user") || originalError.contains("not found")) {
+        displayMessage = "This Username/Email does not exist.";
+      }
+      else if (originalError.contains("password") || originalError.contains("credentials") || originalError.contains("incorrect")) {
+        displayMessage = "Incorrect Password. Please try again.";
+      }
+      else {
+        displayMessage = "Login Failed: ${e.toString().replaceAll("Exception: ", "")}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(displayMessage),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -239,9 +265,59 @@ class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final bool isPassword;
   final Widget? suffixIcon;
-  const CustomTextField({super.key, required this.hintText, required this.icon, required this.controller, this.isPassword = false, this.suffixIcon});
+
+  const CustomTextField({
+    super.key,
+    required this.hintText,
+    required this.icon,
+    required this.controller,
+    this.isPassword = false,
+    this.suffixIcon,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return TextFormField(controller: controller, obscureText: isPassword, decoration: InputDecoration(hintText: hintText, prefixIcon: Icon(icon), suffixIcon: suffixIcon, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))));
+    // 💡 THEME CHECKER: Ye check karega ki phone mein abhi Dark mode hai ya Light mode
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      // 💡 TEXT COLOR FIX: Dark mode mein white, light mode mein black
+      style: TextStyle(
+        fontSize: 16,
+        color: isDarkMode ? Colors.white : Colors.black87,
+      ),
+      decoration: InputDecoration(
+        hintText: hintText,
+        // 💡 HINT COLOR FIX: Taaki placeholder text bhi achhe se dikhe
+        hintStyle: TextStyle(
+          color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+        ),
+        prefixIcon: Icon(icon, color: AppColors.primaryBlue),
+        suffixIcon: suffixIcon,
+        filled: true,
+        // 💡 BACKGROUND COLOR FIX: Dark mode mein dark grey, Light mein light grey
+        fillColor: isDarkMode ? Colors.grey[900] : Colors.grey[50],
+        // Default Border
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDarkMode ? Colors.grey[800]! : AppColors.borderColor,
+          ),
+        ),
+        // Focus Border
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
+        ),
+        // Error Border
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      ),
+    );
   }
 }

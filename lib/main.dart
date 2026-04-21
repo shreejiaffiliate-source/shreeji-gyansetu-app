@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'data/providers/auth_provider.dart';
 import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
+import 'data/services/internet_wrapper.dart';
 import 'data/services/notification_service.dart';
 
 // ✅ 1. GLOBAL NAVIGATOR KEY
@@ -71,14 +72,21 @@ class MyApp extends StatelessWidget {
     return Consumer2<AuthProvider, ThemeProvider>(
       builder: (context, auth, theme, child) {
         return MaterialApp(
-          // ✅ Navigator Key register karein
           navigatorKey: navigatorKey,
-
           title: 'Shreeji GyanSetu',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: theme.themeMode,
+
+          // ✅ YAHAN HUMNE WRAPPER ADD KIYA HAI
+          builder: (context, widget) {
+            return InternetWrapper(
+              // Agar aapne AuthProvider ya kisi aur provider mein isServerDown handle kiya hai
+              // toh wahan se value pass kar sakte ho, varna abhi ke liye false rakho.
+              child: widget!,
+            );
+          },
 
           home: auth.isAuthenticated
               ? const NavigationWrapper()

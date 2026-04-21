@@ -30,21 +30,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedUserType = 'Student'; // Default choice
 
   void _handleRegister() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // ✅ 1. STRICT Email Format Check (Regex Updated)
+    // [a-zA-Z]{3,} ka matlab hai ki .com, .net jaise 3+ letters honge tabhi chalega
+    String emailToValidate = email.toLowerCase();
+    String pattern = r"^[a-zA-Z0-9.]+@(gmail|yahoo|outlook|vastrafix|hotmail)\.(com|in|net|org|co\.in)$";
+    final bool emailValid = RegExp(pattern).hasMatch(emailToValidate);
+
+    if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all mandatory fields")),
+        const SnackBar(content: Text("Please enter your email")),
       );
       return;
     }
 
+    if (!emailValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          // Message bhi ekdum clear kar diya hai
+          content: Text("Please enter a valid email (e.g. name@gmail.com)"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter your password")),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password must be at least 6 characters")),
+      );
+      return;
+    }
+
+    // --- API CALL SECTION ---
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final success = await authProvider.register(
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       username: _usernameController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
+      email: email,
+      password: password,
       userType: _selectedUserType,
       qualification: _qualificationController.text.trim(),
       experience: _experienceController.text.trim(),
@@ -59,14 +94,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(email: _emailController.text.trim()),
+            builder: (context) => OtpVerificationScreen(email: email),
           ),
         );
       }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Register Failed. Username/Email might be taken")),
+          const SnackBar(content: Text("Registration Failed. This Username or Email is already in use.")),
         );
       }
     }

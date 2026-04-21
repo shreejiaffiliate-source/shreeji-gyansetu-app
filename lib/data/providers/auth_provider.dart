@@ -5,7 +5,7 @@ import 'package:gyansetu/core/constants/api_endpoints.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../../core/utils/storage_service.dart';
-import '../models/course_model.dart'; // Ensure this has UserModel
+import '../models/course_model.dart';
 import '../services/notification_service.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -34,13 +34,20 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // 🔥 YAHAN CHANGE KIYA HAI - getHomeData() hata kar getUserProfile() lagaya hai
   Future<void> fetchUserProfile() async {
     try {
-      final response = await _apiService.getHomeData();
-      if (response['user'] != null) {
+      final response = await _apiService.getUserProfile();
+      print("REAL PROFILE RESPONSE: $response");
+
+      // Data extract karne ka safe tarika
+      if (response.containsKey('user') && response['user'] != null) {
         _user = UserModel.fromJson(response['user']);
-        notifyListeners();
+      } else {
+        _user = UserModel.fromJson(response);
       }
+
+      notifyListeners();
     } catch (e) {
       debugPrint("Error fetching profile: $e");
     }
@@ -51,25 +58,26 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     try {
       final response = await _apiService.login(loginId, password);
+
       if (response != null && response['token'] != null) {
         _token = response['token'];
         _staticToken = _token;
         await _storage.saveToken(_token!);
-        NotificationService.getAndUploadToken().catchError((e) => debugPrint("⚠️ Firebase Sync Error: $e"));
         await fetchUserProfile();
         _isAuthenticating = false;
         notifyListeners();
         return true;
       }
+
+      throw Exception(response?['error'] ?? "Invalid Login Credentials");
+
     } catch (e) {
-      debugPrint("❌ API Login Error: $e");
+      _isAuthenticating = false;
+      notifyListeners();
+      rethrow;
     }
-    _isAuthenticating = false;
-    notifyListeners();
-    return false;
   }
 
-  // ✅ FIXED: Register method with correct data mapping
   Future<bool> register({
     required String firstName,
     required String lastName,
@@ -98,7 +106,6 @@ class AuthProvider with ChangeNotifier {
         registrationData['experience_years'] = experience;
       }
 
-      // Pass 'registrationData' to the service
       bool success = await _apiService.apiRegister(registrationData);
 
       _isAuthenticating = false;
@@ -164,29 +171,31 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> updateProfile(Map<String, String> data, File? image) async {
+  Future<String> updateProfile(Map<String, String> data, File? image) async {
     _isAuthenticating = true;
     notifyListeners();
 
     try {
-      final success = await _apiService.updateFullProfile(
+      final String result = await _apiService.updateFullProfile(
           fields: data,
           imageFile: image
       );
 
-      if (success) {
-        // Profile update hone ke baad naya data fetch karo
+      if (result == "success") {
         await fetchUserProfile();
+        _isAuthenticating = false;
+        notifyListeners();
+        return "success";
+      } else {
+        _isAuthenticating = false;
+        notifyListeners();
+        return result;
       }
-
-      _isAuthenticating = false;
-      notifyListeners();
-      return success;
     } catch (e) {
       debugPrint("❌ Update Profile Error: $e");
       _isAuthenticating = false;
       notifyListeners();
-      return false;
+      return "An unexpected error occurred. Please try again.";
     }
   }
 
@@ -198,7 +207,6 @@ class AuthProvider with ChangeNotifier {
         body: json.encode({'email': email}),
       );
 
-      // ✅ DEBUG: Terminal mein check karo status code kya aa raha hai
       print("DEBUG: Status Code: ${response.statusCode}");
       print("DEBUG: Response Body: ${response.body}");
 
@@ -216,7 +224,7 @@ class AuthProvider with ChangeNotifier {
   Future<bool> resetPassword(String email, String otp, String newPassword) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiEndpoints.baseUrl}/reset-password/'), // ✅ Apna sahi URL check kar lena
+        Uri.parse('${ApiEndpoints.baseUrl}/reset-password/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': email,

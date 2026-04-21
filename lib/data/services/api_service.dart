@@ -17,10 +17,15 @@ class ApiService {
   // Helper to get headers with Auth Token
   Future<Map<String, String>> _getHeaders() async {
     String? token = await _storage.getToken();
+
+    // 🔥 DEBUG: Terminal mein check karne ke liye ki token aa raha hai ya nahi
+    debugPrint("🔑 TOKEN JO BACKEND KO JA RAHA HAI: $token");
+
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Token $token',
+      // ✅ WAPAS 'Token' KAR DIYA HAI (Django ki settings ke hisaab se)
+      if (token != null) 'Authorization': 'Token ${token.trim()}',
     };
   }
 
@@ -37,6 +42,26 @@ class ApiService {
       throw Exception('Failed to load home data');
     }
   }
+
+  // 👈 NAYA FUNCTION YAHAN ADD KIYA HAI: Fetch Real User Profile
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final response = await http.get(
+        Uri.parse(ApiEndpoints.profile),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Failed to load profile');
+      }
+    } catch (e) {
+      debugPrint("Profile API Error: $e");
+      rethrow;
+    }
+  }
+  // 👈 NAYA FUNCTION KHATAM
 
   // 2. Fetch All Courses
   Future<List<dynamic>> getAllCourses() async {
@@ -165,25 +190,46 @@ class ApiService {
     }
   }
 
-  // 6. Update Profile
-  Future<bool> updateFullProfile({
+  // 6. Update Profile (Now returns String for better error handling)
+  Future<String> updateFullProfile({
     required Map<String, String> fields,
     File? imageFile,
   }) async {
-    var request = http.MultipartRequest(
-      'PATCH',
-      Uri.parse(ApiEndpoints.profile),
-    );
+    try {
+      var request = http.MultipartRequest('PATCH', Uri.parse(ApiEndpoints.profile));
+      request.headers.addAll(await _getHeaders());
+      request.fields.addAll(fields);
 
-    request.headers.addAll(await _getHeaders());
-    request.fields.addAll(fields);
+      if (imageFile != null) {
+        request.files.add(await http.MultipartFile.fromPath('profile.photo', imageFile.path));
+      }
 
-    if (imageFile != null) {
-      request.files.add(await http.MultipartFile.fromPath('profile.photo', imageFile.path));
+      final response = await http.Response.fromStream(await request.send());
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return "success";
+      } else {
+        // 📝 Django ke saare errors yahan handle honge
+        final Map<String, dynamic> errorData = json.decode(response.body);
+
+        // 1. Check for specific field errors (Enrollment, First Name, etc.)
+        if (errorData.isNotEmpty) {
+          // Agar multiple fields mein error hai, toh ye pehla wala pakad lega
+          String firstKey = errorData.keys.first;
+          var errorValue = errorData[firstKey];
+
+          if (errorValue is List) {
+            return "$firstKey: ${errorValue[0]}"; // Example: "enrollment_number: This field is required"
+          } else if (errorValue is String) {
+            return errorValue;
+          }
+        }
+
+        return "Update failed. Please check all fields.";
+      }
+    } catch (e) {
+      return "Network error. Please try again later.";
     }
-
-    final response = await request.send();
-    return response.statusCode == 200;
   }
 
   // 7. Change Password

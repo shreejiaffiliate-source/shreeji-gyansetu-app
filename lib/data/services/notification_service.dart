@@ -78,14 +78,16 @@ class NotificationService {
           id: message.hashCode,
           title: title,
           body: body,
+          // NotificationService.dart ke andar jahan .show() kar rahe ho:
           notificationDetails: const NotificationDetails(
             android: AndroidNotificationDetails(
               'high_importance_channel',
               'High Importance Notifications',
               channelDescription: 'Teacher replies and alerts',
               importance: Importance.max,
-              priority: Priority.high,
-              showWhen: true,
+              priority: Priority.high, // ✅ Priority High honi chahiye
+              ticker: 'ticker',
+              fullScreenIntent: true, // ✅ Isse upar pop-up aane ke chances badh jate hain
               icon: '@mipmap/ic_launcher',
             ),
           ),

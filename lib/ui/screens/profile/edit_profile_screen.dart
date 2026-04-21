@@ -21,6 +21,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     final user = Provider.of<AuthProvider>(context, listen: false).user;
+    print("User Data: ${user?.firstName} ${user?.lastName}");
     _firstName = TextEditingController(text: user?.firstName);
     _lastName = TextEditingController(text: user?.lastName);
     _email = TextEditingController(text: user?.email);
@@ -100,7 +101,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 20),
             _buildTextField(_firstName, "First Name"),
             _buildTextField(_lastName, "Last Name"),
-            _buildTextField(_email, "Email Address", keyboardType: TextInputType.emailAddress),
+            // ✅ EMAIL KO READ-ONLY KAR DIYA HAI (User badal nahi payega)
+            _buildTextField(
+              _email,
+              "Email Address",
+              keyboardType: TextInputType.emailAddress,
+            ),
             _buildTextField(_branch, "Branch"),
             _buildTextField(_enrollment, "Enrollment Number"),
             _buildTextField(_college, "College/University Name"),
@@ -117,23 +123,53 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
               onPressed: () async {
-                // Prepare data for API
-                Map<String, String> data = {
-                  "first_name": _firstName.text,
-                  "last_name": _lastName.text,
-                  "email": _email.text,
-                  "profile.branch": _branch.text,
-                  "profile.enrollment_number": _enrollment.text,
-                  "profile.college_name": _college.text,
-                  "profile.qualification": _qualification.text,
-                  "profile.date_of_birth": _dob.text,
-                  "profile.bio": _bio.text,
-                };
+                // 1. Pehle Flutter ke validators check honge
+                if (_formKey.currentState!.validate()) {
 
-                final success = await Provider.of<AuthProvider>(context, listen: false)
-                    .updateProfile(data, _imageFile);
+                  // Loading indicator dikhao (niche message box mein)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Updating profile..."), duration: Duration(seconds: 1)),
+                  );
 
-                if (success && mounted) Navigator.pop(context);
+                  Map<String, String> data = {
+                    "first_name": _firstName.text,
+                    "last_name": _lastName.text,
+                    "email": _email.text,
+                    "profile.branch": _branch.text,
+                    "profile.enrollment_number": _enrollment.text,
+                    "profile.college_name": _college.text,
+                    "profile.qualification": _qualification.text,
+                    "profile.date_of_birth": _dob.text,
+                    "profile.bio": _bio.text,
+                  };
+
+                  // 2. API call karo
+                  final result = await Provider.of<AuthProvider>(context, listen: false)
+                      .updateProfile(data, _imageFile);
+
+                  if (mounted) {
+                    if (result == "success") {
+                      // Success message
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Profile updated successfully!"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      Navigator.pop(context);
+                    } else {
+                      // ✅ FIX: Ab popup nahi dikhega, seedha niche error message aayega
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Purana loading hatao
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result), // Backend se aaya "First name cannot be empty" ya "Enrollment duplicate"
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating, // Isse message thoda utha hua aur premium lagega
+                        ),
+                      );
+                    }
+                  }
+                }
               },
               child: const Text("Save Changes", style: TextStyle(color: Colors.white)),
             ),
@@ -159,26 +195,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         readOnly: readOnly,
         onTap: onTap,
-        cursorColor: AppColors.primaryBlue, // Cursor ka color bhi match kar diya
+        // ✅ YAHAN STRICT VALIDATOR ADD KIYA HAI
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return "Please enter your $label";
+          }
+
+          if (label == "Email Address") {
+            String email = value.trim().toLowerCase();
+
+            // 🔥 STRICT DOMAIN + EXTENSION LOGIC:
+            // Sirf in domains aur extensions ko allow karega
+            String pattern = r"^[a-zA-Z0-9.]+@(gmail|yahoo|outlook|vastrafix|hotmail)\.(com|in|net|org|co\.in)$";
+            RegExp regExp = RegExp(pattern);
+
+            if (!regExp.hasMatch(email)) {
+              return "Please enter a valid email (e.g. name@gmail.com)";
+            }
+          }
+          return null;
+        },
+        cursorColor: AppColors.primaryBlue,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: AppColors.textMuted),
-          // Jab field selected/focused ho
-          // floatingLabelStyle: const TextStyle(color: AppColors.primaryBlue),
-
-          // Default border (binas select kiye)
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.borderColor),
           ),
-
-          // ✅ Yeh hai fix: Jab field select ho (Focused)
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
           ),
-
-          // Error border (optional but recommended)
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.red),
@@ -187,7 +235,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.red, width: 2),
           ),
-
           suffixIcon: suffixIcon,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
@@ -195,15 +242,3 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
-
-  // Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, TextInputType? keyboardType}) {
-  //   return Padding(
-  //     padding: const EdgeInsets.only(bottom: 15),
-  //     child: TextFormField(
-  //       controller: controller,
-  //       maxLines: maxLines,
-  //       keyboardType: keyboardType,
-  //       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-  //     ),
-  //   );
-  // }

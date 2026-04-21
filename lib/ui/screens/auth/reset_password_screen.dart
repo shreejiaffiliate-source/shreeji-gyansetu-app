@@ -35,28 +35,48 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final password = _passController.text.trim();
     final confirmPassword = _confirmPassController.text.trim();
 
-    // 1. Basic Validations
-    if (password.isEmpty || confirmPassword.isEmpty) {
+    // 1. Specific Validations (Alag-alag error messages)
+    if (password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields")),
+        const SnackBar(
+          content: Text("Please enter new password"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter confirm password"),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
 
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password must be at least 6 characters")),
+        const SnackBar(
+          content: Text("Password must be at least 6 characters"),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match")),
+        const SnackBar(
+          content: Text("Passwords do not match"),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
 
+    // 2. Start Loading
     setState(() => _isLoading = true);
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -73,21 +93,32 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       setState(() => _isLoading = false);
 
       if (success) {
+        // ✅ Success Message (Green Color ke sath)
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password changed successfully! Please login.")),
+          const SnackBar(
+            content: Text("Password updated successfully! Please login."),
+            backgroundColor: Colors.green, // Success feel ke liye
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         // Login screen par wapas le jao (Clears the stack)
         Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to reset password. Try again.")),
+          const SnackBar(
+            content: Text("Failed to reset password. Try again."),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: ${e.toString()}")),
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
