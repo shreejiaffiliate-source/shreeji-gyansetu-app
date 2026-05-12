@@ -98,9 +98,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "lib/assets/images/logo1.png" # Path to your 1024x1024 icon
-  adaptive_icon_background: "#FFFFFF"     # For Android adaptive icons
-  adaptive_icon_foreground: "lib/assets/images/logo1.png"
+  image_path: "lib/assets/images/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "lib/assets/images/app_icon.png"
 
 flutter_native_splash:
   color: "#FFFFFF" # Your background color (white)

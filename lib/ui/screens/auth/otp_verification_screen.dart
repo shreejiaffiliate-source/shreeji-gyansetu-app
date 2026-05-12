@@ -194,18 +194,33 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  children: [
-                    const TextSpan(text: "We have sent a 6-digit code to\n"),
-                    TextSpan(
-                      text: widget.email,
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+              Column(
+                children: [
+                  const Text(
+                    "We have sent a 6-digit code to",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ],
-                ),
+                    child: Text(
+                      widget.email.isEmpty ? "Email not found" : widget.email,
+                      textAlign: TextAlign.center,
+                      softWrap: true,
+                      overflow: TextOverflow.visible,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 40),
 

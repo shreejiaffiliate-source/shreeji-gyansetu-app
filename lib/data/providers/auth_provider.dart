@@ -63,6 +63,7 @@ class AuthProvider with ChangeNotifier {
         _token = response['token'];
         _staticToken = _token;
         await _storage.saveToken(_token!);
+        await NotificationService.getAndUploadToken();
         await fetchUserProfile();
         _isAuthenticating = false;
         notifyListeners();
@@ -93,17 +94,17 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final Map<String, dynamic> registrationData = {
-        'first_name': firstName,
-        'last_name': lastName,
+        'firstName': firstName,
+        'lastName': lastName,
         'username': username,
         'email': email,
         'password': password,
-        'user_type': userType,
+        'userType': userType,
       };
 
       if (userType == 'Teacher') {
-        registrationData['qualification'] = qualification;
-        registrationData['experience_years'] = experience;
+        registrationData['qualification'] = qualification ?? '';
+        registrationData['experience'] = experience ?? '0';
       }
 
       bool success = await _apiService.apiRegister(registrationData);
@@ -112,6 +113,7 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return success;
     } catch (e) {
+
       debugPrint("❌ Register Error: $e");
       _isAuthenticating = false;
       notifyListeners();
@@ -128,6 +130,7 @@ class AuthProvider with ChangeNotifier {
         _token = response['token'];
         _staticToken = _token;
         await _storage.saveToken(_token!);
+        await NotificationService.getAndUploadToken();
         await fetchUserProfile();
         _isAuthenticating = false;
         notifyListeners();
@@ -150,6 +153,7 @@ class AuthProvider with ChangeNotifier {
         _token = response['token'];
         _staticToken = _token;
         await _storage.saveToken(_token!);
+        await NotificationService.getAndUploadToken();
         await fetchUserProfile();
         _isAuthenticating = false;
         notifyListeners();

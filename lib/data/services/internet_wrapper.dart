@@ -60,25 +60,42 @@ class _InternetWrapperState extends State<InternetWrapper> {
     return StreamBuilder<List<ConnectivityResult>>(
       stream: Connectivity().onConnectivityChanged,
       builder: (context, snapshot) {
+        // ✅ FIX: Jab tak pehla connectivity data nahi milta, tab tak loading dikhao
+        // Isse wo "No Internet" wali screen jhat se nahi aayegi
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF003366),
+              ),
+            ),
+          );
+        }
+
         final connectivityResult = snapshot.data;
 
         // 1. Internet Check
-        if (connectivityResult == null || connectivityResult.contains(ConnectivityResult.none)) {
+        // ConnectivityResult.none ka matlab hai internet bilkul nahi hai
+        if (connectivityResult == null ||
+            connectivityResult.isEmpty ||
+            connectivityResult.contains(ConnectivityResult.none)) {
           return ErrorDisplayScreen(
             errorType: AppErrorType.noInternet,
-            onRetry: _checkServer, // ✅ Function pass kiya
+            onRetry: _checkServer,
           );
         }
 
         // 2. Server Check
+        // Agar internet hai par backend server response nahi de raha
         if (_isServerDown) {
           return ErrorDisplayScreen(
             errorType: AppErrorType.serverDown,
-            onRetry: _checkServer, // ✅ Function pass kiya
+            onRetry: _checkServer,
           );
         }
 
         // 3. Normal App
+        // Jab sab sahi ho tab asli UI dikhao
         return widget.child;
       },
     );

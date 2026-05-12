@@ -112,6 +112,10 @@ class ApiService {
         body: json.encode(data),
         headers: {'Content-Type': 'application/json'},
       );
+
+      debugPrint("REGISTER STATUS: ${response.statusCode}");
+      debugPrint("REGISTER BODY: ${response.body}");
+
       return response.statusCode == 201;
     } catch (e) {
       debugPrint("Registration Error: $e");
@@ -278,12 +282,14 @@ class ApiService {
 
   Future<void> updateVideoProgress(int lessonId, double seconds) async {
     try {
-      final Map<String, String> authHeaders = await _getHeaders();
-      await _dio.post(
-        '/lessons/$lessonId/update-progress/',
-        data: {'last_position': seconds},
-        options: Options(headers: authHeaders),
+      final response = await http.post(
+        Uri.parse("${ApiEndpoints.baseUrl}/lessons/$lessonId/update-progress/"),
+        headers: await _getHeaders(),
+        body: jsonEncode({'last_position': seconds}),
       );
+
+      debugPrint("✅ Progress Sync Status: ${response.statusCode}");
+      debugPrint("✅ Progress Sync Body: ${response.body}");
     } catch (e) {
       debugPrint("Error syncing progress: $e");
     }

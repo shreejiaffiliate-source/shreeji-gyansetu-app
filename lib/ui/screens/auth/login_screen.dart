@@ -31,11 +31,14 @@ class _LoginScreenState extends State<LoginScreen> {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return;
 
+      final displayName = (googleUser.displayName ?? '').trim();
+      final nameParts = displayName.isEmpty ? <String>[] : displayName.split(RegExp(r'\s+'));
+
       final Map<String, dynamic> googleData = {
         'email': googleUser.email,
         'google_id': googleUser.id,
-        'first_name': googleUser.displayName?.split(' ').first ?? '',
-        'last_name': googleUser.displayName?.split(' ').last ?? '',
+        'first_name': nameParts.isNotEmpty ? nameParts.first : '',
+        'last_name': nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '',
       };
 
       bool success = await authProvider.loginWithGoogle(googleData);

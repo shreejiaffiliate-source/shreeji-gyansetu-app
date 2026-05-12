@@ -21,7 +21,8 @@ class LessonPlayerScreen extends StatefulWidget {
   State<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
 }
 
-class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
+class _LessonPlayerScreenState extends State<LessonPlayerScreen> with WidgetsBindingObserver {
+
   final ApiService _apiService = ApiService();
   VideoPlayerController? _videoPlayerController;
   ChewieController? _chewieController;
@@ -31,13 +32,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
 
   Timer? _progressSyncTimer;
   double _lastSyncedPosition = -1.0;
+  double _currentPosition = 0.0;
 
   @override
   void initState() {
     super.initState();
     // ✅ STEP 1: Pehle fresh progress fetch karo server se
     _fetchProgressAndInitialize();
-
+    print("RESOURCES FROM API: ${widget.lesson.resources}");
+    WidgetsBinding.instance.addObserver(this);
     if (widget.openQueries) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showQueryBottomSheet(context);
@@ -49,10 +52,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Future<void> _fetchProgressAndInitialize() async {
     try {
       final double? freshPos = await _apiService.getLatestVideoProgress(widget.lesson.id);
+      debugPrint("🔥 FRESH POSITION FROM BACKEND: $freshPos");
       if (freshPos != null && mounted) {
         setState(() {
           widget.lesson.lastPosition = freshPos;
-          _lastSyncedPosition = freshPos; // 👈 Add this line to avoid immediate re-sync
+          _lastSyncedPosition = freshPos;
+          _currentPosition = freshPos; // 👈 Ye line add karo
         });
       }
     } catch (e) {
@@ -67,33 +72,51 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.lesson.videoUrl.trim()),
       );
+
       await _videoPlayerController!.initialize();
 
-      // ✅ RESUME LOGIC: Ab ye fresh data use karega
-      if (widget.lesson.lastPosition > 1) {
-        final target = Duration(seconds: widget.lesson.lastPosition.toInt());
+      // ✅ Pehle resume time nikalo
+      double resumeTime =
+      _currentPosition > 0 ? _currentPosition : widget.lesson.lastPosition;
+
+      // ✅ Fir seek karo
+      if (resumeTime > 1) {
+        final target = Duration(seconds: resumeTime.toInt());
+
         if (target < _videoPlayerController!.value.duration) {
           await _videoPlayerController!.seekTo(target);
         }
       }
 
+      // Small delay after seek
+      await Future.delayed(const Duration(milliseconds: 300));
+
       _videoPlayerController!.addListener(_videoListener);
+
+      _videoPlayerController!.addListener(() {
+        final controller = _videoPlayerController!;
+
+        if (!controller.value.isPlaying) {
+          _syncProgressToBackend();
+        }
+      });
 
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
+        autoPlay: false,
+        showControls: true,
+        allowPlaybackSpeedChanging: true,
         aspectRatio: _videoPlayerController!.value.aspectRatio,
-        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
-        placeholder: Container(color: Colors.black),
-        materialProgressColors: ChewieProgressColors(
-          playedColor: AppColors.primaryCyan,
-          handleColor: AppColors.primaryBlue,
-        ),
       );
+
+      // ✅ Ab play karo
+      await _videoPlayerController!.play();
 
       _startProgressTimer();
 
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -101,6 +124,15 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           _errorMessage = "Could not load video.";
         });
       }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // ✅ App background mein jaate hi pause aur sync
+      _videoPlayerController?.pause();
+      _syncProgressToBackend();
     }
   }
 
@@ -188,23 +220,33 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   }
 
   void _syncProgressToBackend() {
-    if (_videoPlayerController != null && _videoPlayerController!.value.isPlaying) {
+    if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
       final currentPos = _videoPlayerController!.value.position.inSeconds.toDouble();
 
-      // Sync if moved more than 2 seconds
-      if (!_isCompleted && (currentPos - _lastSyncedPosition).abs() >= 2) {
+      if (!_isCompleted && currentPos >= 1) {
         _apiService.updateVideoProgress(widget.lesson.id, currentPos);
         _lastSyncedPosition = currentPos;
+
+        // ✅ Sabse important: widget ki position update karo
+        // taaki resume logic ko hamesha fresh data mile
+        widget.lesson.lastPosition = currentPos;
+        _currentPosition = currentPos;
       }
     }
   }
 
   void _videoListener() {
     if (_videoPlayerController == null || _isCompleted) return;
-    final pos = _videoPlayerController!.value.position;
-    final dur = _videoPlayerController!.value.duration;
 
-    if (dur != Duration.zero && pos >= (dur - const Duration(milliseconds: 800))) {
+    final value = _videoPlayerController!.value;
+    final pos = value.position;
+    final dur = value.duration;
+
+    if (!value.isInitialized || dur == Duration.zero) return;
+
+    final remaining = dur - pos;
+
+    if (remaining.inSeconds <= 1 || pos.inMilliseconds >= (dur.inMilliseconds * 0.97)) {
       setState(() => _isCompleted = true);
       _handleLessonCompletion();
     }
@@ -229,21 +271,28 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   @override
   void dispose() {
     _progressSyncTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
 
-    // FINAL SYNC on exit
-    if (_videoPlayerController != null && !_isCompleted) {
+    if (_videoPlayerController != null) {
+      _videoPlayerController!.pause(); // Pehle pause
+      _videoPlayerController!.removeListener(_videoListener);
+
       final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
-      _apiService.updateVideoProgress(widget.lesson.id, finalPos);
-    }
+      if (!_isCompleted) {
+        _apiService.updateVideoProgress(widget.lesson.id, finalPos);
+      }
 
-    _videoPlayerController?.removeListener(_videoListener);
-    _videoPlayerController?.dispose();
+      _videoPlayerController!.dispose(); // Phir dispose
+    }
     _chewieController?.dispose();
     super.dispose();
   }
 
   void _showQueryBottomSheet(BuildContext context) async {
-    _videoPlayerController?.pause();
+    if (_videoPlayerController != null) {
+      await _videoPlayerController?.pause(); // Wait for pause to finish
+      setState(() {}); // UI refresh
+    }
     _syncProgressToBackend(); // Force sync immediately on pause
 
     final TextEditingController queryController = TextEditingController();
@@ -428,11 +477,11 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
-      onPopInvokedWithResult: (didPop, result) async { // 👈 Change this line
-        if (didPop) return;
-        if (_videoPlayerController != null && !_isCompleted) {
-          final finalPos = _videoPlayerController!.value.position.inSeconds.toDouble();
-          await _apiService.updateVideoProgress(widget.lesson.id, finalPos);
+      onPopInvokedWithResult: (didPop, result) {
+        // ✅ Logic: Agar pop ho chuka hai (didPop true), toh turant pause karo
+        if (didPop) {
+          _videoPlayerController?.pause();
+          return;
         }
       },
       child: Scaffold(
@@ -468,8 +517,12 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildActionIcon(Icons.description, "Notes", onTap: () async {
+                        print("Notes URL: ${widget.lesson.notesUrl}");
                         if (widget.lesson.notesUrl != null && widget.lesson.notesUrl!.isNotEmpty) {
-                          _videoPlayerController?.pause();
+                          // ✅ Notes kholne se pehle pause
+                          await _videoPlayerController?.pause();
+                          if (mounted) setState(() {});
+
                           await Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -479,7 +532,7 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
                                   )
                               )
                           );
-                          _videoPlayerController?.play();
+                          if (mounted) await _videoPlayerController?.play();
                         } else {
                           _showFeatureSnackBar("No notes available.");
                         }
