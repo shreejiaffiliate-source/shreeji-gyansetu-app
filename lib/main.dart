@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // 🎯 NAYA: AdMob SDK Import
 import 'package:gyansetu/ui/navigation_wrapper.dart';
 import 'package:gyansetu/ui/screens/auth/login_screen.dart';
 import 'package:gyansetu/ui/screens/auth/register_screen.dart';
@@ -12,6 +13,10 @@ import 'data/providers/course_provider.dart';
 import 'data/providers/theme_provider.dart';
 import 'data/services/internet_wrapper.dart';
 import 'data/services/notification_service.dart';
+import 'package:gyansetu/ui/screens/teacher/teacher_navigation_wrapper.dart'; // Teacher ka wrapper
+import 'package:gyansetu/core/utils/storage_service.dart';
+
+import 'ui/widgets/gyansetu_interstitial_ad.dart'; // Storage service role nikalne ke liye
 
 // ✅ 1. GLOBAL NAVIGATOR KEY
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -25,6 +30,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🎯 NAYA: AdMob SDK engine ko start kiya
+  await MobileAds.instance.initialize();
+
+  // Interstitial Ad background me load ho jayegi
+  GyansetuInterstitialAd.loadAd();
 
   // 2. Initialize Services
   try {
@@ -88,9 +99,12 @@ class MyApp extends StatelessWidget {
             );
           },
 
-          home: auth.isAuthenticated
-              ? const NavigationWrapper()
-              : const LoginScreen(),
+          // home: auth.isAuthenticated
+          //     ? const NavigationWrapper()
+          //     : const LoginScreen(),
+
+          // NAYA CODE:
+          home: const AuthWrapper(),
 
           routes: {
             '/login': (context) => const LoginScreen(),
@@ -108,9 +122,28 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+
+    // Agar user logged in hai
     if (authProvider.isAuthenticated) {
-      return const NavigationWrapper();
+      // FutureBuilder se hum role nikalenge
+      return FutureBuilder<String?>(
+        future: StorageService().getUserRole(),
+        builder: (context, snapshot) {
+          // Jab tak role nikal raha hai, ek loading spinner dikhao
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+
+          // Role check karo aur sahi Dashboard par bhejo
+          if (snapshot.data == 'Teacher') {
+            return const TeacherNavigationWrapper();
+          } else {
+            return const NavigationWrapper(); // Student Dashboard
+          }
+        },
+      );
     } else {
+      // Agar logged in nahi hai, toh direct Login Screen
       return const LoginScreen();
     }
   }

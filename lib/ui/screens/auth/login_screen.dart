@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/storage_service.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../navigation_wrapper.dart';
 import 'register_screen.dart';
 import 'otp_verification_screen.dart';
+import '../teacher/teacher_navigation_wrapper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,7 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _loginController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isObscured = true;
+  String _selectedRole = 'Student'; // Default
 
+  // Yahan starting mein _ (underscore) laga de
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: '281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com',
   );
@@ -39,24 +43,25 @@ class _LoginScreenState extends State<LoginScreen> {
         'google_id': googleUser.id,
         'first_name': nameParts.isNotEmpty ? nameParts.first : '',
         'last_name': nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '',
+        'requested_role': _selectedRole, // Role pass kiya
       };
 
       bool success = await authProvider.loginWithGoogle(googleData);
       if (!mounted) return;
 
       if (success) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const NavigationWrapper()),
-              (route) => false,
-        );
+        final storageService = StorageService();
+        String? role = await storageService.getUserRole();
+        if (!mounted) return;   // 👈 YE LINE ADD KARO
+        if (role == 'Teacher') {
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const TeacherNavigationWrapper()), (route) => false);
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const NavigationWrapper()), (route) => false);
+        }
       }
     } catch (e) {
-      debugPrint("❌ Google Error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Google Sign-In failed: $e")),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))));
     }
   }
 
@@ -65,61 +70,47 @@ class _LoginScreenState extends State<LoginScreen> {
     final loginId = _loginController.text.trim();
     final password = _passwordController.text.trim();
 
-    // 1. Client-side Validation (Jo khali hai sirf uska message)
-    if (loginId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter your Username or Email")),
-      );
-      return;
-    }
-    if (password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter your Password")),
-      );
+    if (loginId.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter Username and Password")));
       return;
     }
 
     try {
-      bool success = await authProvider.login(loginId, password);
+      // 🚀 Yahan _selectedRole bhej rahe hain
+      bool success = await authProvider.login(loginId, password, _selectedRole);
 
       if (!mounted) return;
 
       if (success) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const NavigationWrapper()),
-              (route) => false,
-        );
+        final storageService = StorageService();
+        String? role = await storageService.getUserRole();
+
+        if (role == 'Teacher') {
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const TeacherNavigationWrapper()), (route) => false);
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const NavigationWrapper()), (route) => false);
+        }
       }
-      // Note: Agar API 'false' return karti hai bina error ke,
-      // toh backend ko fix karna padega ki wo 'exception' throw kare.
     } catch (e) {
-      String originalError = e.toString().toLowerCase();
+      String errorText = e.toString().toLowerCase();
       String displayMessage = "";
 
-      // ✅ Server Down Check (Agar connection refused ya timeout ho)
-      if (originalError.contains("socketexception") || originalError.contains("timeout")) {
-        displayMessage = "Server is not reachable. Please check your connection.";
-      }
-      else if (originalError.contains("user") || originalError.contains("not found")) {
-        displayMessage = "This Username/Email does not exist.";
-      }
-      else if (originalError.contains("password") || originalError.contains("credentials") || originalError.contains("incorrect")) {
+      // 🚀 FIX: Role Mismatch Validation Messages (Screenshot ke hisab se)
+      if (errorText.contains("not a student")) {
+        displayMessage = "Access Denied: This ID is registered as a Teacher, not a Student.";
+      } else if (errorText.contains("not a teacher")) {
+        displayMessage = "Access Denied: This ID is registered as a Student, not a Teacher.";
+      } else if (errorText.contains("invalid login credentials") || errorText.contains("invalid password")) {
         displayMessage = "Incorrect Password. Please try again.";
-      }
-      else {
-        displayMessage = "Login Failed: ${e.toString().replaceAll("Exception: ", "")}";
+      } else {
+        displayMessage = e.toString().replaceAll("Exception: ", "");
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(displayMessage),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(displayMessage), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating),
       );
     }
   }
-
   // ✅ Forgot Password Dialog
   void _showForgotPasswordDialog(BuildContext context) {
     final TextEditingController forgotEmailController = TextEditingController();
@@ -158,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
               navigator.pop();
 
               // ✅ STEP 3: API Call karo
-              bool sent = await authProvider.resendOtp(email);
+              bool sent = await authProvider.forgotPassword(email); // ✅ YEH SAHI HAI
 
               if (sent) {
                 print("Moving to OTP Screen now...");

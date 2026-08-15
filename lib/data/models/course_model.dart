@@ -144,6 +144,7 @@ class UserModel {
   final String? qualification;
   final String? dateOfBirth;
   final String? bio;
+  final int? experienceYears;
 
   UserModel({
     required this.id,
@@ -160,6 +161,7 @@ class UserModel {
     this.qualification,
     this.dateOfBirth,
     this.bio,
+    this.experienceYears, // 🚀 YAHAN BHI ADD KIYA HAI
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -183,6 +185,10 @@ class UserModel {
       dateOfBirth: profile['date_of_birth']?.toString() ?? '',
       bio: profile['bio']?.toString() ?? '',
       profilePhoto: json['profile_photo'] ?? profile['photo'],
+      // 🚀 BACKEND SE EXPERIENCE READ KARNE KA LOGIC
+      experienceYears: profile['experience_years'] != null
+          ? int.tryParse(profile['experience_years'].toString()) ?? 0
+          : 0,
     );
   }
 }

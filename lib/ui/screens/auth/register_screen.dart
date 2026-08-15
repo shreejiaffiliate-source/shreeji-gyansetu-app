@@ -5,6 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import 'otp_verification_screen.dart';
+import '../../../core/utils/storage_service.dart';
+import '../teacher/teacher_navigation_wrapper.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

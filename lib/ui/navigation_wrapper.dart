@@ -5,6 +5,7 @@ import 'screens/home/home_tab.dart';
 import 'screens/courses/course_list_screen.dart';
 import 'screens/learning/my_learning_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'widgets/gyansetu_banner_ad.dart'; // 🎯 NAYA: Banner Ad Import kiya
 
 class NavigationWrapper extends StatefulWidget {
   const NavigationWrapper({super.key});
@@ -78,9 +79,18 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
         await _handleBackPress(); // ✅ Har baar ye function call hoga
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: _screens,
+        // 🎯 NAYA CHANGE: Body ko Column me daala aur bottom me Banner fix kar di
+        body: Column(
+          children: [
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: _screens,
+              ),
+            ),
+            // 🎯 NAYA: Ye ad hamesha bottom navigation bar ke theek upar rahegi
+            const GyansetuBannerAd(),
+          ],
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(

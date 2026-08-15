@@ -48,9 +48,7 @@ class CourseProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // UPDATED: Added forceRefresh to ensure progress bars update immediately
   Future<void> fetchMyCourses({bool forceRefresh = false}) async {
-    // 1. If forcing a refresh, clear the old data so the UI MUST rebuild
     if (forceRefresh) {
       _myEnrolledCourses = [];
       _isLoading = true;
@@ -62,7 +60,6 @@ class CourseProvider with ChangeNotifier {
 
     try {
       final List<dynamic> data = await _apiService.getMyCourses();
-      // 2. Map the fresh JSON to brand new CourseModel instances
       final List<CourseModel> fetched = data.map((json) => CourseModel.fromJson(json)).toList();
 
       final Map<int, CourseModel> distinctCourses = {};
@@ -71,12 +68,18 @@ class CourseProvider with ChangeNotifier {
       }
 
       _myEnrolledCourses = distinctCourses.values.toList();
-      debugPrint("Provider: Fresh progress received. Beginner Course: ${_myEnrolledCourses.firstWhere((c) => c.id == 2).progress}");
+
+      if (_myEnrolledCourses.isNotEmpty) {
+        debugPrint("Provider: Fetched ${_myEnrolledCourses.length} enrolled courses.");
+      } else {
+        debugPrint("Provider: Student has no enrolled courses yet.");
+      }
+
     } catch (e) {
       debugPrint("Error fetching my courses: $e");
     } finally {
       _isLoading = false;
-      notifyListeners(); // This triggers the MyCoursesScreen to repaint
+      notifyListeners();
     }
   }
 
@@ -94,7 +97,6 @@ class CourseProvider with ChangeNotifier {
       if (coursesJson != null) {
         _popularCourses = coursesJson.map((item) => CourseModel.fromJson(item)).toList();
       }
-      // Keep background sync for "My Learning"
       await fetchMyCourses();
     } catch (error) {
       debugPrint("!!! Home Data Error: $error");
@@ -104,13 +106,29 @@ class CourseProvider with ChangeNotifier {
     }
   }
 
-  // UPDATED: Sequential await ensures UI waits for the new progress data
+  // 🚀 NAYA FUNCTION: Sirf Categories load karne ke liye (Teacher Dashboard ke liye)
+  Future<void> fetchCategories() async {
+    if (_categories.isNotEmpty) return; // Agar pehle se load hai toh time bacha lo
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      // Home data wali API se hi categories nikal lenge
+      final data = await _apiService.getHomeData();
+      _categories = data['categories'] ?? [];
+    } catch (error) {
+      debugPrint("Error fetching categories: $error");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> completeLesson(int lessonId) async {
     try {
       bool success = await _apiService.markLessonAsComplete(lessonId);
 
       if (success) {
-        // 3. IMPORTANT: Use the forceRefresh flag to clear the old 0% data
         await fetchMyCourses(forceRefresh: true);
         await fetchHomeData();
         debugPrint("Provider: Lesson $lessonId sync complete.");
@@ -125,7 +143,7 @@ class CourseProvider with ChangeNotifier {
 
   Future<void> fetchNotifications() async {
     try {
-      final data = await _apiService.getNotifications(); // Create this in ApiService
+      final data = await _apiService.getNotifications();
       _notifications = data;
       notifyListeners();
     } catch (e) {
@@ -150,7 +168,6 @@ class CourseProvider with ChangeNotifier {
     try {
       bool success = await _apiService.markNotificationAsRead(notificationId);
       if (success) {
-        // Remove from local list so badge updates immediately
         _notifications.removeWhere((n) => n['id'] == notificationId);
         notifyListeners();
       }

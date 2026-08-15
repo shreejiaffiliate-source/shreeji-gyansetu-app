@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/providers/course_provider.dart';
 import '../../../data/models/course_model.dart';
 import '../../widgets/course_card.dart';
+import '../../widgets/gyansetu_native_ad.dart'; // 🎯 NAYA: Native Ad import kiya
 
 class CourseListScreen extends StatefulWidget {
   const CourseListScreen({super.key});
@@ -81,8 +82,8 @@ class _CourseListScreenState extends State<CourseListScreen> {
           : RefreshIndicator(
         onRefresh: () => courseProvider.fetchAllCourses(),
         child: courseProvider.filteredCourses.isEmpty
-          ? _buildNoResults()
-        : ListView.builder(
+            ? _buildNoResults()
+            : ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 20),
           itemCount: courseProvider.categories.length,
           itemBuilder: (context, index) {
@@ -96,7 +97,18 @@ class _CourseListScreenState extends State<CourseListScreen> {
 
             if (filteredCourses.isEmpty) return const SizedBox.shrink();
 
-            return _buildCategoryRow(context, categoryTitle, iconClass, filteredCourses);
+            return Column(
+              children: [
+                _buildCategoryRow(context, categoryTitle, iconClass, filteredCourses),
+
+                // 🎯 NAYA CHANGE: Har doosri category ke baad Native Ad dikhegi
+                if ((index + 1) % 2 == 0)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 20),
+                    child: GyansetuNativeAd(), // Apna ad widget call kiya
+                  ),
+              ],
+            );
           },
         ),
       ),
@@ -136,10 +148,11 @@ class _CourseListScreenState extends State<CourseListScreen> {
             },
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10), // Thodi spacing adjust ki hai ad ke liye
       ],
     );
   }
+
   IconData _getIconData(String? iconClass) {
     if (iconClass == null) return Icons.category;
 
@@ -154,6 +167,7 @@ class _CourseListScreenState extends State<CourseListScreen> {
         return Icons.category;
     }
   }
+
   Widget _buildNoResults() {
     return Center(
       child: SingleChildScrollView(

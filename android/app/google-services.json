@@ -14,11 +14,72 @@
       },
       "oauth_client": [
         {
-          "client_id": "281789689411-hhkm5p2cn1ukqfp9hsj9sufoehtto0a0.apps.googleusercontent.com",
+          "client_id": "281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDujMiPXIujtdlDPMu1jMyAvNnHfYLxckw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "281789689411-l99pgkob8g0a5jpj32noc78j2pqqq6l4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281789689411:android:a4e36927398f8e7273aef6",
+        "android_client_info": {
+          "package_name": "com.shreejifintech.gyansetu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "281789689411-6s3rmp1s0f49t0i3j2srqrqbkdme75qh.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.gyansetu",
+            "package_name": "com.shreejifintech.gyansetu",
+            "certificate_hash": "11c28c5f80c41ee6b8b1bc53c78defed225fc1d8"
+          }
+        },
+        {
+          "client_id": "281789689411-rr4j6ani82bjo6qdqttkdta8a4d14sk3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shreejifintech.gyansetu",
             "certificate_hash": "1d3d4e782b8cbd75377be31697e96c973e40d3c8"
+          }
+        },
+        {
+          "client_id": "281789689411-th7td1veoutcuevvkmaorlargl3dc9av.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shreejifintech.gyansetu",
+            "certificate_hash": "1646bb15867475398e2060185c1b073b01f17c9d"
+          }
+        },
+        {
+          "client_id": "281789689411-uktha9plqv5sfn8fgg7i531cibps9jd3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shreejifintech.gyansetu",
+            "certificate_hash": "c1beb2c5b96decd290e0aac9e86756df5a2de397"
+          }
+        },
+        {
+          "client_id": "281789689411-us2m6j8k2j03ai5sfhptcuqiicgn7r72.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shreejifintech.gyansetu",
+            "certificate_hash": "a5e3cfcb2391486a77547e80df72e11d0774cb0b"
           }
         },
         {

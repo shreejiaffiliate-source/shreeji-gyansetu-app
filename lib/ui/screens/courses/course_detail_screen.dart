@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../../data/providers/course_provider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../screens/learning/pdf_viewer_screen.dart';
+import '../../widgets/gyansetu_interstitial_ad.dart'; // 🎯 NAYA: Interstitial Ad import kiya
 
 class CourseDetailScreen extends StatefulWidget {
   final CourseModel course;
@@ -132,9 +133,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               onPressed: () {
                 Navigator.pop(context);
                 if (widget.course.modules.isNotEmpty && widget.course.modules.first.lessons.isNotEmpty) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LessonPlayerScreen(lesson: widget.course.modules.first.lessons.first)),
+                  // 🎯 NAYA CHANGE: Naya course start karne se pehle Ad dikhegi
+                  GyansetuInterstitialAd.showAd(
+                    onComplete: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => LessonPlayerScreen(lesson: widget.course.modules.first.lessons.first)),
+                      );
+                    },
                   );
                 }
               },
@@ -288,80 +294,84 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         shape: const RoundedRectangleBorder(side: BorderSide.none),
         leading: Icon(isModuleDone ? Icons.verified : Icons.library_books, color: isModuleDone ? AppColors.primaryGreen : AppColors.primaryBlue),
         title: Text(module.title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isModuleDone ? AppColors.primaryGreen : null)),
-          children: module.lessons.map((lesson) {
-            final bool isLessonDone = lesson.isCompleted;
-            final bool hasPdf = lesson.notesUrl != null && lesson.notesUrl!.isNotEmpty;
-            final bool hasVideo = lesson.videoUrl.isNotEmpty;
+        children: module.lessons.map((lesson) {
+          final bool isLessonDone = lesson.isCompleted;
+          final bool hasPdf = lesson.notesUrl != null && lesson.notesUrl!.isNotEmpty;
+          final bool hasVideo = lesson.videoUrl.isNotEmpty;
 
-            return Container(
-              color: isLessonDone ? AppColors.primaryGreen.withValues(alpha: 0.08) : Colors.transparent,
-              child: ListTile(
-                contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                leading: Icon(
-                  isLessonDone
-                      ? Icons.check_circle
-                      : (hasVideo) // ✅ Pehle Video check karo
-                      ? Icons.play_circle_fill
-                      : hasPdf // ✅ Agar video nahi hai, tab PDF check karo
-                      ? Icons.picture_as_pdf
-                      : (isEnrolled || lesson.isPreview)
-                      ? Icons.play_circle_fill // Fallback
-                      : Icons.lock_outline,
-                  color: isLessonDone
-                      ? AppColors.primaryGreen
-                      : (hasVideo) // ✅ Video ke liye Cyan/Blue color
-                      ? AppColors.primaryCyan
-                      : hasPdf // ✅ PDF ke liye Red color
-                      ? Colors.red
-                      : (isEnrolled || lesson.isPreview)
-                      ? AppColors.primaryCyan
-                      : AppColors.textMuted,
-                  size: 20,
+          return Container(
+            color: isLessonDone ? AppColors.primaryGreen.withValues(alpha: 0.08) : Colors.transparent,
+            child: ListTile(
+              contentPadding: const EdgeInsets.only(left: 32, right: 16),
+              leading: Icon(
+                isLessonDone
+                    ? Icons.check_circle
+                    : (hasVideo) // ✅ Pehle Video check karo
+                    ? Icons.play_circle_fill
+                    : hasPdf // ✅ Agar video nahi hai, tab PDF check karo
+                    ? Icons.picture_as_pdf
+                    : (isEnrolled || lesson.isPreview)
+                    ? Icons.play_circle_fill // Fallback
+                    : Icons.lock_outline,
+                color: isLessonDone
+                    ? AppColors.primaryGreen
+                    : (hasVideo) // ✅ Video ke liye Cyan/Blue color
+                    ? AppColors.primaryCyan
+                    : hasPdf // ✅ PDF ke liye Red color
+                    ? Colors.red
+                    : (isEnrolled || lesson.isPreview)
+                    ? AppColors.primaryCyan
+                    : AppColors.textMuted,
+                size: 20,
+              ),
+              title: Text(
+                lesson.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isLessonDone ? AppColors.textMuted : null,
+                  fontWeight: isLessonDone ? FontWeight.w400 : FontWeight.w500,
                 ),
-                title: Text(
-                  lesson.title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isLessonDone ? AppColors.textMuted : null,
-                    fontWeight: isLessonDone ? FontWeight.w400 : FontWeight.w500,
-                  ),
-                ),
-                onTap: () {
-                  if (isEnrolled || lesson.isPreview) {
-                    // ✅ FIX: Humesha Video Player kholo agar video hai
-                    if (hasVideo) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LessonPlayerScreen(lesson: lesson),
-                        ),
-                      );
-                    }
-                    // Agar sirf PDF hai (Video nahi), tabhi direct PDF kholo
-                    else if (hasPdf) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PdfViewerScreen(
-                            pdfUrl: lesson.notesUrl!,
-                            title: lesson.title,
-                          ),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("No content available.")),
-                      );
-                    }
+              ),
+              onTap: () {
+                if (isEnrolled || lesson.isPreview) {
+                  if (hasVideo || hasPdf) {
+                    // 🎯 NAYA CHANGE: Video/PDF kholne se theek pehle Ad aayegi
+                    GyansetuInterstitialAd.showAd(
+                      onComplete: () {
+                        if (hasVideo) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => LessonPlayerScreen(lesson: lesson),
+                            ),
+                          );
+                        } else if (hasPdf) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PdfViewerScreen(
+                                pdfUrl: lesson.notesUrl!,
+                                title: lesson.title,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Enroll to unlock!")),
+                      const SnackBar(content: Text("No content available.")),
                     );
                   }
-                },
-              ),
-            );
-          }).toList(),
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Enroll to unlock!")),
+                  );
+                }
+              },
+            ),
+          );
+        }).toList(),
       ),
     );
   }

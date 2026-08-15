@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/storage_service.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../navigation_wrapper.dart';
+import '../teacher/teacher_navigation_wrapper.dart';
 import 'reset_password_screen.dart';
 import 'dart:async';
 
@@ -27,7 +29,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   bool _isLoading = false;
   Timer? _timer;
-  int _start = 120;
+  int _start = 40; // 🚀 FIX: Default timer 40 seconds set kiya
   bool _isResending = false;
 
   @override
@@ -49,7 +51,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   void _startTimer() {
-    setState(() => _start = 120);
+    setState(() => _start = 40); // 🚀 FIX: Resend pe bhi timer 40 seconds se start hoga
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_start == 0) {
@@ -101,36 +103,54 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isLoading = true);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    bool success = await authProvider.verifyOtp(widget.email, _fullOtp);
+    if (widget.isPasswordReset) {
+      // 🚀 ASLI FIX YAHAN HAI: Ab ye backend se OTP check karega pehle!
+      bool isOtpValid = await authProvider.verifyPasswordResetOtp(widget.email, _fullOtp);
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
-        if (widget.isPasswordReset) {
-          // ✅ Forgot Password Flow
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ResetPasswordScreen(
-                email: widget.email,
-                otp: _fullOtp,
-              ),
+      if (mounted) setState(() => _isLoading = false);
+
+      if (isOtpValid) {
+        // OTP sahi hai, ab Reset screen par bhejo
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResetPasswordScreen(
+              email: widget.email,
+              otp: _fullOtp,
             ),
-          );
-        } else {
-          // ✅ Registration Flow
+          ),
+        );
+      } else {
+        // OTP galat hai, yahi rok lo aur error dikhao!
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid OTP! Please check the code properly."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } else {
+      // Registration Flow: (Jaise pehle kaam karta tha)
+      bool success = await authProvider.verifyOtp(widget.email, _fullOtp);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Email Verified Successfully!")),
           );
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const NavigationWrapper()),
-                (route) => false,
+
+          String? role = await StorageService().getUserRole();
+          if (role == 'Teacher') {
+            Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const TeacherNavigationWrapper()), (route) => false);
+          } else {
+            Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const NavigationWrapper()), (route) => false);
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Invalid OTP. Please try again.")),
           );
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid OTP. Please try again.")),
-        );
       }
     }
   }

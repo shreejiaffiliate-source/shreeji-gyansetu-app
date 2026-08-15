@@ -22,28 +22,41 @@ class _InternetWrapperState extends State<InternetWrapper> {
   void initState() {
     super.initState();
     // ✅ Har 10 second mein ye khud check karega ki server zinda hai ya nahi
-    _timer = Timer.periodic(const Duration(seconds: 10), (t) => _checkServer());
+    _timer = Timer.periodic(
+        const Duration(seconds: 30), (t) => _checkServer());
     _checkServer();
   }
 
   Future<void> _checkServer() async {
     try {
       // 💡 Tip: Sirf '/' check karne ki jagah '/api/home/' ya koi light endpoint check karo
-      final response = await http.get(Uri.parse(ApiEndpoints.baseUrl))
+      final response = await http.get(Uri.parse(ApiEndpoints.health))
           .timeout(const Duration(seconds: 5));
 
       debugPrint("DEBUG: Server Check Status: ${response.statusCode}");
 
       // Agar humein server se koi bhi response mil raha hai (below 500), toh server chalu hai
-      if (response.statusCode < 500) {
-        if (_isServerDown) setState(() => _isServerDown = false);
+      if (response.statusCode == 200) {
+        if (_isServerDown) {
+          setState(() {
+            _isServerDown = false;
+          });
+        }
       } else {
-        if (!_isServerDown) setState(() => _isServerDown = true);
+        if (!_isServerDown) {
+          setState(() {
+            _isServerDown = true;
+          });
+        }
       }
     } catch (e) {
-      debugPrint("DEBUG: Server Check Error: $e");
-      // Agar connection refuse ho raha hai (Server band hai)
-      if (!_isServerDown) setState(() => _isServerDown = true);
+      debugPrint(e.toString());
+
+      if (mounted) {
+        setState(() {
+          _isServerDown = false;
+        });
+      }
     }
   }
 
@@ -63,6 +76,9 @@ class _InternetWrapperState extends State<InternetWrapper> {
         // ✅ FIX: Jab tak pehla connectivity data nahi milta, tab tak loading dikhao
         // Isse wo "No Internet" wali screen jhat se nahi aayegi
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          if (snapshot.hasError) {
+            return widget.child;
+          }
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(
@@ -77,11 +93,12 @@ class _InternetWrapperState extends State<InternetWrapper> {
         // 1. Internet Check
         // ConnectivityResult.none ka matlab hai internet bilkul nahi hai
         if (connectivityResult == null ||
-            connectivityResult.isEmpty ||
             connectivityResult.contains(ConnectivityResult.none)) {
           return ErrorDisplayScreen(
             errorType: AppErrorType.noInternet,
-            onRetry: _checkServer,
+              onRetry: () async {
+                await _checkServer();
+              }
           );
         }
 
@@ -90,7 +107,9 @@ class _InternetWrapperState extends State<InternetWrapper> {
         if (_isServerDown) {
           return ErrorDisplayScreen(
             errorType: AppErrorType.serverDown,
-            onRetry: _checkServer,
+              onRetry: () async {
+                await _checkServer();
+              }
           );
         }
 

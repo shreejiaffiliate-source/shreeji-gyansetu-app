@@ -78,7 +78,7 @@ class ApiService {
   }
 
   // --- NEW: Smart Login (Supports Username or Email) ---
-  Future<Map<String, dynamic>?> login(String loginId, String password) async {
+  Future<Map<String, dynamic>?> login(String loginId, String password, String requestedRole) async {
     try {
 
       final String loginUrl = "${ApiEndpoints.baseUrl}/login/";
@@ -88,7 +88,8 @@ class ApiService {
         Uri.parse(loginUrl),
         body: json.encode({
           'login_id': loginId.trim(), // Can be email or username
-          'password': password
+          'password': password,
+          'requested_role': requestedRole,
         }),
         headers: {'Content-Type': 'application/json'},
       );

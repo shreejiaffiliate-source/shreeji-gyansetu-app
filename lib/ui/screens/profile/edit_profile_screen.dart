@@ -38,11 +38,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (pickedFile != null) setState(() => _imageFile = File(pickedFile.path));
   }
 
-  // 1. ADD THIS FUNCTION to show the DatePicker
   Future<void> _selectDate(BuildContext context) async {
     DateTime initialDate = DateTime.now().subtract(const Duration(days: 365 * 18));
 
-    // Attempt to parse existing date if it exists
     if (_dob.text.isNotEmpty) {
       try {
         initialDate = DateTime.parse(_dob.text);
@@ -60,9 +58,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: AppColors.primaryBlue, // header background color
-              onPrimary: Colors.white, // header text color
-              onSurface: AppColors.textDark, // body text color
+              primary: AppColors.primaryBlue,
+              onPrimary: Colors.white,
+              onSurface: AppColors.textDark,
             ),
           ),
           child: child!,
@@ -72,7 +70,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (picked != null) {
       setState(() {
-        // Formats the date to YYYY-MM-DD for Django
         _dob.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
@@ -101,11 +98,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 20),
             _buildTextField(_firstName, "First Name"),
             _buildTextField(_lastName, "Last Name"),
-            // ✅ EMAIL KO READ-ONLY KAR DIYA HAI (User badal nahi payega)
+            // ✅ EMAIL KO READ-ONLY KAR DIYA HAI
             _buildTextField(
               _email,
               "Email Address",
               keyboardType: TextInputType.emailAddress,
+              readOnly: true, // User ise touch nahi kar sakta
             ),
             _buildTextField(_branch, "Branch"),
             _buildTextField(_enrollment, "Enrollment Number"),
@@ -123,33 +121,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
               onPressed: () async {
-                // 1. Pehle Flutter ke validators check honge
                 if (_formKey.currentState!.validate()) {
 
-                  // Loading indicator dikhao (niche message box mein)
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Updating profile..."), duration: Duration(seconds: 1)),
                   );
 
+                  // 🚀 FIX: Email ko yahan se poora hata do.
+                  // Email ki zaroorat nahi hai update karne ke liye.
                   Map<String, String> data = {
-                    "first_name": _firstName.text,
-                    "last_name": _lastName.text,
-                    "email": _email.text,
-                    "profile.branch": _branch.text,
-                    "profile.enrollment_number": _enrollment.text,
-                    "profile.college_name": _college.text,
-                    "profile.qualification": _qualification.text,
-                    "profile.date_of_birth": _dob.text,
-                    "profile.bio": _bio.text,
+                    "first_name": _firstName.text.trim(),
+                    "last_name": _lastName.text.trim(),
+                    "profile.branch": _branch.text.trim(),
+                    "profile.college_name": _college.text.trim(),
+                    "profile.qualification": _qualification.text.trim(),
+                    "profile.date_of_birth": _dob.text.trim(),
+                    "profile.bio": _bio.text.trim(),
                   };
 
-                  // 2. API call karo
+                  // 🚀 FIX: Enrollment Number empty ho toh safely handle karo
+                  if (_enrollment.text.trim().isNotEmpty) {
+                    data["profile.enrollment_number"] = _enrollment.text.trim();
+                  } else {
+                    data["profile.enrollment_number"] = "";
+                  }
+
                   final result = await Provider.of<AuthProvider>(context, listen: false)
                       .updateProfile(data, _imageFile);
 
                   if (mounted) {
                     if (result == "success") {
-                      // Success message
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Profile updated successfully!"),
@@ -158,13 +159,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       );
                       Navigator.pop(context);
                     } else {
-                      // ✅ FIX: Ab popup nahi dikhega, seedha niche error message aayega
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Purana loading hatao
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(result), // Backend se aaya "First name cannot be empty" ya "Enrollment duplicate"
+                          content: Text(result),
                           backgroundColor: Colors.redAccent,
-                          behavior: SnackBarBehavior.floating, // Isse message thoda utha hua aur premium lagega
+                          behavior: SnackBarBehavior.floating,
                         ),
                       );
                     }
@@ -195,23 +195,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         readOnly: readOnly,
         onTap: onTap,
-        // ✅ YAHAN STRICT VALIDATOR ADD KIYA HAI
         validator: (value) {
-          if (value == null || value.trim().isEmpty) {
+          if (label != "Email Address" && (value == null || value.trim().isEmpty)) {
+            // Agar aapko baaki fields optional rakhni hain toh isko hata sakte ho
             return "Please enter your $label";
-          }
-
-          if (label == "Email Address") {
-            String email = value.trim().toLowerCase();
-
-            // 🔥 STRICT DOMAIN + EXTENSION LOGIC:
-            // Sirf in domains aur extensions ko allow karega
-            String pattern = r"^[a-zA-Z0-9.]+@(gmail|yahoo|outlook|vastrafix|hotmail)\.(com|in|net|org|co\.in)$";
-            RegExp regExp = RegExp(pattern);
-
-            if (!regExp.hasMatch(email)) {
-              return "Please enter a valid email (e.g. name@gmail.com)";
-            }
           }
           return null;
         },
